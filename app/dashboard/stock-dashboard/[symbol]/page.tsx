@@ -46,7 +46,7 @@ interface KeyMetric {
     label: string;
     value: string;
     change?: string;
-    icon: React.ElementType;
+    icon: React.ComponentType<{ className?: string }>;
     color: string;
 }
 

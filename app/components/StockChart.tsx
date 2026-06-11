@@ -166,7 +166,7 @@ export const StockChart: React.FC<StockChartProps> = ({
     };
 
     const timeframeOptions: Timeframe[] = ['1D', '1W', '1M', '3M', '6M', '1Y', '5Y', 'MAX'];
-    const chartTypeOptions: { type: ChartType; icon: React.ElementType }[] = [
+    const chartTypeOptions: { type: ChartType; icon: React.ComponentType<{ className?: string }> }[] = [
         { type: 'line', icon: LineChartIcon },
         { type: 'area', icon: Activity },
         { type: 'candlestick', icon: BarChart3 },
