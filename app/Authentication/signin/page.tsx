@@ -10,6 +10,7 @@ import {
   Loader2, CheckCircle, AlertCircle,
   Briefcase, Star, Heart, Key
 } from 'lucide-react';
+import clsx from 'clsx';
 
 export default function SigninPage() {
   const router = useRouter();
@@ -91,7 +92,7 @@ export default function SigninPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4 overflow-hidden relative">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center p-4 relative">
 
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden">
@@ -520,8 +521,4 @@ export default function SigninPage() {
     </div>
   );
 }
-
-// Helper function for conditional classes
-const clsx = (...classes: any[]) => {
-  return classes.filter(Boolean).join(' ');
-};
+

@@ -67,6 +67,7 @@ export default function MovableNewsBar({
     const [isPaused, setIsPaused] = useState(false);
     const [hoveredNews, setHoveredNews] = useState<string | null>(null);
     const animationRef = useRef<number>();
+    const exactScrollRef = useRef<number>(0);
     const [displayNews, setDisplayNews] = useState<NewsItem[]>([]);
 
     // Filter news based on sentiment and prepare for display
@@ -102,6 +103,8 @@ export default function MovableNewsBar({
     useEffect(() => {
         if (!autoScroll || isPaused || isDragging || !scrollContainerRef.current || displayNews.length === 0) return;
 
+        exactScrollRef.current = scrollContainerRef.current.scrollLeft;
+
         const scroll = () => {
             if (scrollContainerRef.current && !isPaused && !isDragging) {
                 const container = scrollContainerRef.current;
@@ -109,9 +112,11 @@ export default function MovableNewsBar({
 
                 if (container.scrollLeft >= maxScrollLeft - 10) {
                     // Reset to start when reaching the end
+                    exactScrollRef.current = 0;
                     container.scrollLeft = 0;
                 } else {
-                    container.scrollLeft += scrollSpeed;
+                    exactScrollRef.current += scrollSpeed;
+                    container.scrollLeft = exactScrollRef.current;
                 }
             }
             animationRef.current = requestAnimationFrame(scroll);
@@ -395,7 +400,7 @@ export default function MovableNewsBar({
                 onMouseLeave={handleMouseUpOrLeave}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-                <div className="flex gap-3 p-3 min-w-min">
+                <div className="flex gap-3 p-3 w-max">
                     {displayNews.map((item) => {
                         const isHovered = hoveredNews === item.id;
                         const sentiment = getSentimentBadge(item.sentiment);

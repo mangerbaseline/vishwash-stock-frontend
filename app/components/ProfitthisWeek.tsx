@@ -36,7 +36,7 @@ export default function ProfitThisWeek() {
   const chartData = selected === 'This Week' ? data_this_week : data_last_week;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm w-full max-w-[588px] md:max-w-[400px]">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm w-full">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Profit this week</h2>
         <select

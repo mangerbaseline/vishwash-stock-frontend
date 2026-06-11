@@ -18,7 +18,7 @@ const COLORS = ['#0e14cd', '#3035d3', '#474bcb', '#6f71bb'];
 
 export default function UsedDevices() {
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 max-w-[590px] m-auto shadow-sm w-full text-gray-900 dark:text-gray-100">
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm w-full text-gray-900 dark:text-gray-100">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold">Used Devices</h2>
         <select className="text-sm border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md px-2 py-1">

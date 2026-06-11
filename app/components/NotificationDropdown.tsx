@@ -13,9 +13,11 @@ import { useNotifications } from '../contexts/NotificationContext';
 import clsx from 'clsx';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import router from 'next/router';
+import { useRouter } from 'next/navigation';
 
 const NotificationDropdown = () => {
+    const router = useRouter();
+
     const {
         notifications,
         unreadCount,

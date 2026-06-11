@@ -655,16 +655,24 @@ export default function StocksPage() {
         fetchStocks(false);
     }, [checkBackendConnection, fetchStocks]);
 
-    // Auto-refresh timer
+    // Auto-refresh and Live Mode timer
     useEffect(() => {
-        if (!autoRefresh) return;
+        if (!autoRefresh && !liveMode) return;
 
-        const interval = setInterval(() => {
+        const interval = setInterval(async () => {
+            if (liveMode && selectedStock && !syncingStock) {
+                // In Live Mode, actively poll Apify API for the selected stock
+                try {
+                    await fetch(`${API_BASE_URL}/api/apify-stocks/update/${selectedStock}`, { method: 'POST' });
+                } catch (e) {
+                    console.error('Live Sync Error:', e);
+                }
+            }
             fetchStocks(true);
-        }, refreshInterval);
+        }, liveMode ? 15000 : refreshInterval); // 15s live polling, or 30s standby DB refresh
 
         return () => clearInterval(interval);
-    }, [autoRefresh, refreshInterval, fetchStocks]);
+    }, [autoRefresh, liveMode, refreshInterval, fetchStocks, selectedStock, syncingStock, API_BASE_URL]);
 
     // Search filter
     useEffect(() => {
@@ -1024,9 +1032,9 @@ export default function StocksPage() {
                 </div>
             )}
 
-            <div className="flex">
-                <div className="w-3/4">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
+                <div className="lg:col-span-3">
+                    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
                         <div className="mb-6">
                             <MovableNewsBar
                                 news={news}
@@ -1047,9 +1055,10 @@ export default function StocksPage() {
                         {/* Header Section - with fixed heights to prevent layout shift */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 min-h-[100px]">
                             <div className="min-w-[300px]">
-                                <h1 className="text-3xl font-bold flex items-center gap-3">
-                                    <BarChart3 className="w-8 h-8 text-indigo-500" />
-                                    Professional Trading Dashboard
+                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold flex items-center gap-2 sm:gap-3">
+                                    <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-indigo-500" />
+                                    <span className="hidden xs:inline">Professional Trading Dashboard</span>
+                                    <span className="inline xs:hidden">Dashboard</span>
                                 </h1>
                                 <div className="flex items-center gap-3 mt-2 flex-wrap min-h-[28px]">
                                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${marketStatus === 'OPEN' ? 'bg-green-500/20 text-green-700 dark:text-green-400' :
@@ -1076,11 +1085,11 @@ export default function StocksPage() {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-2 flex-wrap min-h-[44px]">
+                            <div className="flex items-center gap-2 flex-wrap min-h-[44px] w-full md:w-auto">
                                 <select
                                     value={selectedStock}
                                     onChange={(e) => setSelectedStock(e.target.value)}
-                                    className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500"
+                                    className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:border-indigo-500 text-sm max-w-[200px] sm:max-w-none"
                                 >
                                     {stocks.slice(0, 50).map(stock => (
                                         <option key={stock.Symbol} value={stock.Symbol}>
@@ -1128,12 +1137,22 @@ export default function StocksPage() {
                                 </button>
 
                                 <button
-                                    onClick={syncSelectedStock}
-                                    disabled={syncingStock || initialLoading}
-                                    className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium flex items-center gap-2 disabled:opacity-50"
+                                    onClick={() => setLiveMode(!liveMode)}
+                                    className={`px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all duration-300 ${liveMode 
+                                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/40 animate-pulse' 
+                                        : 'bg-green-600 hover:bg-green-700 text-white'}`}
                                 >
-                                    <Database className={`w-4 h-4 ${syncingStock ? 'animate-spin' : ''}`} />
-                                    {syncingStock ? 'Syncing...' : 'Sync Live'}
+                                    {liveMode ? (
+                                        <>
+                                            <Radio className="w-4 h-4 animate-spin-slow" />
+                                            Live Mode: ON
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Database className="w-4 h-4" />
+                                            Live Mode: OFF
+                                        </>
+                                    )}
                                 </button>
 
                                 <button
@@ -1356,7 +1375,7 @@ export default function StocksPage() {
                                         </button>
                                     </div>
 
-                                    <div className="relative w-64">
+                                    <div className="relative w-full sm:w-48 md:w-56 lg:w-64">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                                         <input
                                             type="text"
@@ -1422,8 +1441,8 @@ export default function StocksPage() {
                     </div>
                 </div>
 
-                {/* Right Sidebar - News Panel (25% width) */}
-                <div className="w-1/4 border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto" style={{ height: 'calc(100vh - 80px)', position: 'sticky', top: '80px' }}>
+                {/* News Panel - Responsive layout */}
+                <div className="lg:col-span-1 border-t lg:border-t-0 lg:border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 overflow-y-auto lg:sticky lg:top-[80px] lg:h-[calc(100vh-80px)]">
                     <div className="p-4">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-semibold flex items-center gap-2">

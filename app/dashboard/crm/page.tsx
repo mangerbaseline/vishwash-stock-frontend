@@ -102,7 +102,7 @@ useEffect(() => {
     </ResponsiveContainer>
     <div className="mt-4 flex justify-center text-sm font-medium text-gray-800 dark:text-white">
       <span >Received Amount <span className="block text-xl font-bold">$580.00</span></span>
-      <span className='border-r mx-20 border-gray-200'></span>
+      <span className='border-r mx-6 sm:mx-20 border-gray-200'></span>
       <span>Due Amount <span className="block text-xl font-bold">$628.00</span></span>
     </div>
   </div>

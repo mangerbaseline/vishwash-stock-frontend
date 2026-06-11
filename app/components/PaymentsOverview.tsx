@@ -32,7 +32,7 @@ export default function PaymentsOverview() {
   const chartData = selectedRange === 'Monthly' ? data_month : data_year;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl max-w-[590px] w-full p-4 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-xl w-full p-4 shadow-sm">
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Payments Overview</h2>

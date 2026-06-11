@@ -68,6 +68,7 @@ export default function MovableStockBar({
     const [isPaused, setIsPaused] = useState(false);
     const [hoveredStock, setHoveredStock] = useState<string | null>(null);
     const animationRef = useRef<number>();
+    const exactScrollRef = useRef<number>(0);
     const [displayStocks, setDisplayStocks] = useState<StockData[]>([]);
 
     // Filter and prepare stocks for display
@@ -90,6 +91,8 @@ export default function MovableStockBar({
     useEffect(() => {
         if (!autoScroll || isPaused || isDragging || !scrollContainerRef.current) return;
 
+        exactScrollRef.current = scrollContainerRef.current.scrollLeft;
+
         const scroll = () => {
             if (scrollContainerRef.current && !isPaused && !isDragging) {
                 const container = scrollContainerRef.current;
@@ -97,9 +100,11 @@ export default function MovableStockBar({
 
                 if (container.scrollLeft >= maxScrollLeft - 10) {
                     // Reset to start when reaching the end
+                    exactScrollRef.current = 0;
                     container.scrollLeft = 0;
                 } else {
-                    container.scrollLeft += scrollSpeed;
+                    exactScrollRef.current += scrollSpeed;
+                    container.scrollLeft = exactScrollRef.current;
                 }
             }
             animationRef.current = requestAnimationFrame(scroll);
@@ -328,7 +333,7 @@ export default function MovableStockBar({
                 onMouseLeave={handleMouseUpOrLeave}
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
             >
-                <div className="flex gap-2 p-3 min-w-min">
+                <div className="flex gap-2 p-3 w-max">
                     {displayStocks.map((stock) => {
                         const isSelected = selectedStock === stock.Symbol;
                         const isWatched = watchlist.includes(stock.Symbol);

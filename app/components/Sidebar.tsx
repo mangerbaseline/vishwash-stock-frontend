@@ -98,13 +98,13 @@ export default function Sidebar() {
         // Always fetch from API to get the most up-to-date and complete profile
         const data = await getUserProfile(token);
         console.log("Sidebar - API Fetched user data:", data);
-        
+
         if (data) {
           setUser(data);
         }
       } catch (error) {
         console.error("Sidebar - Error fetching user data from API:", error);
-        
+
         // Fallback to localStorage if API fails
         try {
           const storedUser = localStorage.getItem("user");
@@ -205,6 +205,7 @@ export default function Sidebar() {
         { label: 'Stock Comparison', href: '/dashboard/stock-comparison', pro: true, icon: <BarChart3 size={16} />, isNew: true },
         { label: 'Marketing', href: '/dashboard/marketing', pro: true, icon: <Activity size={16} /> },
         { label: 'CRM', href: '/dashboard/crm', pro: true, icon: <Users size={16} /> },
+        { label: 'Global Markets', href: '/dashboard/global-markets', pro: true, icon: <Globe size={16} />, isNew: true },
       ],
     },
     {
@@ -268,7 +269,7 @@ export default function Sidebar() {
   ];
 
   const othersMenu: MenuItem[] = [
-   
+
     {
       label: 'Authentication',
       icon: <LogIn size={20} />,
@@ -578,7 +579,7 @@ export default function Sidebar() {
               </span>
             </div>
             <span className="text-[10px] text-gray-400">
-              v2.0.0
+              v1.0.0
             </span>
           </div>
         </div>

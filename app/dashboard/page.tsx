@@ -21,7 +21,7 @@ type IconKeys = keyof typeof iconsMap;
 export default function DashboardPage() {
   return (
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen w-full overflow-x-hidden">
-      <div className="pt-6 px-4 sm:px-6 sm:w-full max-w-[270px] sm:max-w-full  mx-auto">
+      <div className="pt-6 px-4 sm:px-6 w-full mx-auto">
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPIStatCard

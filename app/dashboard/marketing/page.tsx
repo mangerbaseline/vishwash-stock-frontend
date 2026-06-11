@@ -226,10 +226,10 @@ export default function DashboardPage() {
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
         <h2 className="text-lg font-semibold dark:text-white mb-4">Featured Campaigns</h2>
         {featuredCampaigns.map((item, i) => (
-          <div key={i} className="grid grid-cols-3 py-3 items-center text-sm border-b dark:text-white text-gray-700">
-            <span>{item.title}</span>
-            <span><span className={`px-2 py-1 rounded-md text-xs font-medium ${item.color}`}>{item.status}</span></span>
-            <span>{item.conversion}</span>
+          <div key={i} className="grid grid-cols-2 sm:grid-cols-3 py-3 items-center text-sm border-b dark:text-white text-gray-700">
+            <span className="font-medium">{item.title}</span>
+            <span className="hidden sm:block text-center"><span className={`px-2 py-1 rounded-md text-xs font-medium ${item.color}`}>{item.status}</span></span>
+            <span className="text-right sm:text-left">{item.conversion}</span>
           </div>
         ))}
       </div>

@@ -305,10 +305,57 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     useEffect(() => {
         fetchNotifications();
 
-        // Refresh notifications every 5 minutes
-        const interval = setInterval(fetchNotifications, 300000);
-        return () => clearInterval(interval);
-    }, [fetchNotifications]);
+        // WebSocket setup for real-time notifications
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const wsUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/^http/, 'ws') + '/ws/notifications';
+        const socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            console.log('🔔 Connected to notification WebSocket');
+            socket.send(JSON.stringify({ type: 'AUTH', token }));
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'INIT') {
+                    setUnreadCount(data.unreadCount);
+                } else if (data.type === 'NOTIFICATION') {
+                    const newNotification = data.notification;
+                    // Map backend Notification to frontend Notification interface
+                    const mappedNotif: Notification = {
+                        id: newNotification._id,
+                        type: (newNotification.type || 'INFO').toLowerCase() as any,
+                        title: newNotification.title,
+                        message: newNotification.message,
+                        link: newNotification.link,
+                        read: newNotification.isRead,
+                        createdAt: newNotification.createdAt
+                    };
+                    addNotification(mappedNotif);
+
+                    // Show browser notification if permitted
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                        new window.Notification(mappedNotif.title, {
+                            body: mappedNotif.message,
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error('Error parsing WS message:', err);
+            }
+        };
+
+        socket.onclose = () => {
+            console.log('🔌 Disconnected from notification WebSocket');
+        };
+
+        return () => {
+            socket.close();
+        };
+    }, [fetchNotifications, addNotification]);
 
     return (
         <NotificationContext.Provider value={{

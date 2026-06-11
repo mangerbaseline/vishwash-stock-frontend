@@ -14,6 +14,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AnimatedLogo from './AnimatedLogo';
 import { useSearch } from '../contexts/SearchContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import NotificationDropdown from './NotificationDropdown';
 import SearchModal from './SearchModal';
 
 interface UserData {
@@ -43,6 +45,7 @@ export default function Header({ user: propUser }: HeaderProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const { setShowSearchModal } = useSearch();
+  const { unreadCount, showDropdown, setShowDropdown } = useNotifications();
 
   const isAdmin = user?.role === 'admin';
 
@@ -319,31 +322,7 @@ export default function Header({ user: propUser }: HeaderProps) {
               />
             </button>
 
-            <button
-              className="relative p-2 sm:p-2.5 rounded-xl bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 hover:scale-110 group"
-              onMouseEnter={() => setHoveredItem('notification')}
-              onMouseLeave={() => setHoveredItem(null)}
-            >
-              <Bell
-                className={clsx(
-                  "text-gray-700 dark:text-gray-300 transition-all duration-300",
-                  hoveredItem === 'notification' && "rotate-12",
-                  notificationPulse && "animate-slow-pulse"
-                )}
-                size={20}
-              />
-              <span className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
-                <span className={clsx(
-                  "animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75",
-                  notificationPulse ? "scale-100" : "scale-50"
-                )}></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-              </span>
-
-              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
-                3 new notifications
-              </div>
-            </button>
+            <NotificationDropdown />
             <div className="flex items-center gap-3 pl-2 border-l border-gray-200 dark:border-gray-700">
               {!loading && user && (
                 <div className="hidden sm:block text-right group">
