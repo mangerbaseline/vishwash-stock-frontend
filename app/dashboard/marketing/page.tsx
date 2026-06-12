@@ -34,6 +34,8 @@ type Stat = {
   description: string;
 };
 
+import { PageSkeleton } from '../../components/ui/Skeleton';
+
 // ------------------ Component ------------------
 export default function DashboardPage() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -53,6 +55,10 @@ export default function DashboardPage() {
   const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  if (loading) {
+    return <PageSkeleton type="marketing" />;
+  }
 
   useEffect(() => {
     setLoading(true);

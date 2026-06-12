@@ -11,6 +11,8 @@ import {
   Linkedin,
   Dribbble,
   Globe,
+} from 'lucide-react';
+import {
   Camera,
   Edit2,
   Save,

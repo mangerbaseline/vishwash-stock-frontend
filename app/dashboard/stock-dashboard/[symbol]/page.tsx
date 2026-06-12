@@ -12,6 +12,7 @@ import {
     FileText, Target, Shield, Award, Zap
 } from 'lucide-react';
 import { StockChart, Timeframe, ChartType } from '../../../components/StockChart';
+import { PageSkeleton } from '../../../components/ui/Skeleton';
 
 interface StockDetails {
     symbol: string;

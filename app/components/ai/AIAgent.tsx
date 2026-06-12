@@ -629,14 +629,11 @@ export default function AIAgent({
                                         </div>
 
                                         {msg.toolCalls && msg.toolCalls.length > 0 && (
-                                            <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                                                <div className="flex items-center gap-2 mb-2 text-indigo-600 dark:text-indigo-400">
-                                                    <RefreshCw className="w-3 h-3 animate-spin" />
-                                                    <span className="text-[10px] font-bold uppercase tracking-wider">Processed {msg.toolCalls.length} verification tools</span>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
+                                            <div className="mt-3">
+                                                <div className="flex flex-wrap gap-1.5">
                                                     {msg.toolCalls.map((t, i) => (
-                                                        <span key={i} className="px-2 py-1 bg-white dark:bg-gray-900 text-[10px] rounded-md border border-indigo-100 dark:border-indigo-800 font-mono">
+                                                        <span key={i} className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-[9px] rounded border border-indigo-200 dark:border-indigo-700 font-mono text-indigo-500 inline-flex items-center gap-1">
+                                                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full"></span>
                                                             {t.name}()
                                                         </span>
                                                     ))}

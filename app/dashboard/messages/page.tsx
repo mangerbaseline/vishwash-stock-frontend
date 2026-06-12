@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { messageApi } from '../../lib/messageApi';
 import { useToast } from '../../components/ui/toast';
+import { MessagesSkeleton } from '../../components/ui/Skeleton';
 
 // Interfaces
 interface User {

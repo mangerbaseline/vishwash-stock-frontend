@@ -6,6 +6,8 @@ import {
 } from 'recharts';
 
 
+import { PageSkeleton } from '../../components/ui/Skeleton';
+
 export default function DashboardOverview() {
 
   const [cardStats, setCardStats] = useState<any[]>([]);
@@ -37,6 +39,10 @@ useEffect(() => {
       setLoading(false);
     });
 }, []);
+
+if (loading) {
+  return <PageSkeleton type="crm" />;
+}
 
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">

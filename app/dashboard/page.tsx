@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import KPIStatCard from '../components/KpiStatCards';
 import { Eye, DollarSign, Package, Users, BarChart3 } from 'lucide-react';
 import PaymentsOverview from '../components/PaymentsOverview';
@@ -7,6 +8,7 @@ import ProfitThisWeek from '../components/ProfitthisWeek';
 import UsedDevices from '../components/Useddevices';
 import USRegionMap from '../components/RegionLabels';
 import TopChannelsAndChats from '../components/TopChannels';
+import { PageSkeleton } from '../components/ui/Skeleton';
 
 const iconsMap = {
   BarChart3,
@@ -16,9 +18,19 @@ const iconsMap = {
 
 type IconKeys = keyof typeof iconsMap;
 
-
-
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate data loading
+    const timer = setTimeout(() => setLoading(false), 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    return <PageSkeleton type="dashboard" />;
+  }
+
   return (
     <div className="bg-gray-100 dark:bg-gray-900 min-h-screen w-full overflow-x-hidden">
       <div className="pt-6 px-4 sm:px-6 w-full mx-auto">

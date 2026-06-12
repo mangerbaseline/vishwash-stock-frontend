@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { format } from 'date-fns';
+import { CalendarSkeleton } from '../../components/ui/Skeleton';
 
 interface CalendarEvent {
     id: string;
@@ -66,10 +67,24 @@ export default function CalendarPage() {
     const token = useSelector((state: any) => state.auth.token);
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
-    // Fetch events
+    // Use initial loading state for skeleton
+    const [initialLoading, setInitialLoading] = useState(true);
+
     useEffect(() => {
+        // Show skeleton for at least 800ms for perceived performance
+        const timer = setTimeout(() => setInitialLoading(false), 800);
         fetchEvents();
+        return () => clearTimeout(timer);
     }, [currentDate]);
+
+    if (initialLoading) {
+        return (
+            <div className="p-4 md:p-6">
+                <CalendarSkeleton />
+            </div>
+        );
+    }
+
     // app/dashboard/calendar/page.tsx - Update fetchEvents function
     const fetchEvents = async () => {
         try {

@@ -55,11 +55,24 @@ const ASSETS_TO_FOLLOW = [
     'ripple', 'cardano', 'dogecoin', 'polkadot', 'tron'
 ];
 
+import { PageSkeleton } from '../../components/ui/Skeleton';
+
 export default function CryptoDashboard() {
     const [assets, setAssets] = useState<CryptoAsset[]>([]);
     const [selectedAsset, setSelectedAsset] = useState<CryptoAsset | null>(null);
     const [loading, setLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Show skeleton during initial load
+    useEffect(() => {
+        const timer = setTimeout(() => setInitialLoading(false), 1000);
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (initialLoading) {
+        return <PageSkeleton type="crypto" />;
+    }
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
     const ws = useRef<WebSocket | null>(null);
 

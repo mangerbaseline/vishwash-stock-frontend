@@ -43,6 +43,7 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { PageSkeleton } from '../../components/ui/Skeleton';
 
 interface ExchangeData {
     id: string;
