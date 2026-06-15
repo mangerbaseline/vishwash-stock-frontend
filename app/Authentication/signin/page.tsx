@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-export default function SigninPage() {
+function SigninContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -592,6 +592,23 @@ export default function SigninPage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function SigninPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950 flex items-center justify-center">
+        <div className="animate-pulse flex flex-col items-center gap-4">
+          <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl">
+            <span className="text-3xl font-bold text-white">V</span>
+          </div>
+          <p className="text-gray-500">Loading...</p>
+        </div>
+      </div>
+    }>
+      <SigninContent />
+    </Suspense>
   );
 }
 
