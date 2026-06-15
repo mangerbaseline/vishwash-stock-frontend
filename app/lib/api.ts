@@ -260,6 +260,45 @@ export async function verifyToken(token: string) {
   return data; // { message, user }
 }
 
+export async function googleSignIn(credential: string) {
+  const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+  const endpoint = `${BASE_URL}/api/auth/google`;
+
+  console.log("📤 API: Sending Google sign-in request to:", endpoint);
+
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ credential }),
+    });
+
+    console.log("📥 API: Response status:", res.status);
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.message || "Google sign-in failed");
+    }
+
+    const data = await res.json();
+    console.log("📥 API: Response data:", data);
+
+    if (data.token) {
+      localStorage.setItem("token", data.token);
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      document.cookie = `auth-token=${data.token}; path=/; max-age=86400; samesite=lax`;
+    }
+
+    return data;
+  } catch (error: any) {
+    console.error("❌ API: Google sign-in error:", error);
+    throw error;
+  }
+}
+
 export async function getUserProfile(token: string): Promise<UserData> {
   const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
   const url = `${BASE_URL}/api/auth/me`; // Use the working endpoint

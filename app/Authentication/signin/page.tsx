@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { signin } from "../../lib/api";
+import React, { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signin, googleSignIn } from "../../lib/api";
 import Link from "next/link";
 import {
   Mail, Lock, Eye, EyeOff, ArrowRight, Sparkles,
@@ -14,16 +14,64 @@ import clsx from 'clsx';
 
 export default function SigninPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [success, setSuccess] = useState(false);
+
+  // Handle OAuth callback (Google redirects back here with auth code)
+  useEffect(() => {
+    const code = searchParams.get('code');
+    const errorParam = searchParams.get('error');
+
+    if (errorParam) {
+      setError(errorParam === 'auth_failed' ? 'Google sign-in failed. Please try again.' : 'Google sign-in was cancelled.');
+      return;
+    }
+
+    if (code) {
+      setGoogleLoading(true);
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
+      fetch(`${BASE_URL}/api/auth/google/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.token) {
+            document.cookie = `auth-token=${data.token}; path=/; max-age=86400; secure; samesite=lax`;
+            localStorage.setItem("token", data.token);
+            if (data.user) {
+              localStorage.setItem("user", JSON.stringify(data.user));
+            }
+            // Remove code from URL without reload
+            window.history.replaceState({}, '', '/Authentication/signin');
+            setSuccess(true);
+            setTimeout(() => {
+              router.replace("/dashboard/stock-dashboard");
+            }, 1500);
+          } else {
+            setError(data.message || 'Google sign-in failed');
+          }
+        })
+        .catch(err => {
+          setError(err.message || 'Google sign-in failed');
+        })
+        .finally(() => {
+          setGoogleLoading(false);
+        });
+    }
+  }, [searchParams, router]);
 
   // Mouse move effect for background
   useEffect(() => {
@@ -33,6 +81,24 @@ export default function SigninPage() {
     window.addEventListener('mousemove', handleMouseMove);
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+      const res = await fetch(`${BASE_URL}/api/auth/google/url`);
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError('Failed to get Google sign-in URL');
+        setGoogleLoading(false);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to initiate Google sign-in');
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,14 +477,21 @@ export default function SigninPage() {
                     <button
                       key={i}
                       type="button"
+                      onClick={provider.label === 'Google' ? handleGoogleSignIn : undefined}
+                      disabled={provider.label === 'Google' ? googleLoading : false}
                       className={clsx(
                         "relative py-3 px-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700",
                         "hover:border-indigo-500 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 group",
-                        "overflow-hidden"
+                        "overflow-hidden",
+                        provider.label === 'Google' && googleLoading && "opacity-50 cursor-not-allowed"
                       )}
                     >
                       <div className={`absolute inset-0 bg-gradient-to-br ${provider.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
-                      <provider.icon className="w-5 h-5 mx-auto text-gray-700 dark:text-gray-300 group-hover:scale-110 transition-transform" />
+                      {provider.label === 'Google' && googleLoading ? (
+                        <Loader2 className="w-5 h-5 mx-auto text-gray-700 dark:text-gray-300 animate-spin" />
+                      ) : (
+                        <provider.icon className="w-5 h-5 mx-auto text-gray-700 dark:text-gray-300 group-hover:scale-110 transition-transform" />
+                      )}
                       <span className="sr-only">{provider.label}</span>
                     </button>
                   ))}
@@ -521,4 +594,4 @@ export default function SigninPage() {
     </div>
   );
 }
-
+
