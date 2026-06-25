@@ -8,6 +8,10 @@ import Sidebar from '@/app/components/Sidebar';
 import Header from '@/app/components/Header';
 import { login, logout } from '@/store/authSlice';
 import Footer from '../components/Footer';
+import { CallProvider } from '@/app/contexts/CallContext';
+import IncomingCallModal from '@/app/components/IncomingCallModal';
+import ActiveCallUI from '@/app/components/ActiveCallUI';
+import { NotificationProvider } from '@/app/contexts/NotificationContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -143,21 +147,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <div className="flex flex-1 relative">
-        <Sidebar />
-        <div className="flex flex-col flex-1 min-w-0">
-          <Header />
-          <main className="flex-1 bg-gray-100 dark:bg-gray-900 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-            {children}
-          </main>
-        </div>
+    <CallProvider>
+      <NotificationProvider>
+        <div className="flex flex-col min-h-screen">
+          <div className="flex flex-1 relative">
+            <Sidebar />
+            <div className="flex flex-col flex-1 min-w-0">
+              <Header />
+              <main className="flex-1 bg-gray-100 dark:bg-gray-900 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+                {children}
+              </main>
+            </div>
+          </div>
+          
+          {/* Call Components */}
+          <IncomingCallModal />
+          <ActiveCallUI />
+          <footer className={`relative ${pathname.includes('dashboard') ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-900 to-gray-800'} text-white overflow-hidden`}>
+
+          <Footer />
+
+        </footer>
       </div>
-      <footer className={`relative ${pathname.includes('dashboard') ? 'bg-gray-900' : 'bg-gradient-to-br from-gray-900 to-gray-800'} text-white overflow-hidden`}>
-
-        <Footer />
-
-      </footer>
-    </div>
+    </NotificationProvider>
+  </CallProvider>
   );
 }

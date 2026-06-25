@@ -74,6 +74,7 @@ export default function Sidebar() {
   const [openMenus, setOpenMenus] = useState<{ [key: string]: boolean }>({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const [notificationCounts, setNotificationCounts] = useState<{ messages: number }>({ messages: 0 });
 
   // Fetch user data from API
   useEffect(() => {
@@ -126,7 +127,36 @@ export default function Sidebar() {
     fetchUserData();
   }, [reduxUser]);
 
-  // No longer needed as handled in the main effect
+  // Fetch notification counts
+  useEffect(() => {
+    const fetchNotificationCounts = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        if (!token) return;
+
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/messages/notifications/count`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.notifications) {
+            setNotificationCounts(data.notifications);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching notification counts:', error);
+      }
+    };
+
+    fetchNotificationCounts();
+
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(fetchNotificationCounts, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -200,8 +230,8 @@ export default function Sidebar() {
       icon: <Home size={20} />,
       children: [
         { label: 'Stocks', href: '/dashboard/stock-dashboard', pro: true, icon: <TrendingUp size={16} />, isUpdated: true },
-        { label: 'Crypto Pulse', href: '/dashboard/crypto-dashboard', pro: true, icon: <Zap size={16} />, isNew: true },
-        { label: 'Crypto Analytics', href: '/dashboard/crypto-analytics', pro: true, icon: <Layers size={16} />, isNew: true },
+        // { label: 'Crypto Pulse', href: '/dashboard/crypto-dashboard', pro: true, icon: <Zap size={16} />, isNew: true },
+        // { label: 'Crypto Analytics', href: '/dashboard/crypto-analytics', pro: true, icon: <Layers size={16} />, isNew: true },
         { label: 'Stock Comparison', href: '/dashboard/stock-comparison', pro: true, icon: <BarChart3 size={16} />, isNew: true },
         { label: 'Marketing', href: '/dashboard/marketing', pro: true, icon: <Activity size={16} /> },
         { label: 'CRM', href: '/dashboard/crm', pro: true, icon: <Users size={16} /> },
@@ -244,7 +274,7 @@ export default function Sidebar() {
       label: 'Messages',
       icon: <MessageCircle size={20} />,
       href: '/dashboard/messages',
-      notifyCount: 9,
+      notifyCount: notificationCounts.messages > 0 ? notificationCounts.messages : undefined,
       pro: true,
       isNew: true
     },
@@ -254,12 +284,12 @@ export default function Sidebar() {
       href: '#',
       pro: true
     },
-    {
-      label: 'Invoices',
-      icon: <Receipt size={20} />,
-      href: '#',
-      pro: true
-    },
+    // {
+    //   label: 'Invoices',
+    //   icon: <Receipt size={20} />,
+    //   href: '#',
+    //   pro: true
+    // },
     {
       label: 'Help Center',
       icon: <HelpCircle size={20} />,
@@ -555,7 +585,7 @@ export default function Sidebar() {
             </div>
           )}
 
-          {filteredOthersMenu.length > 0 && (
+          {/* {filteredOthersMenu.length > 0 && (
             <div className="mb-6">
               <div className="flex items-center gap-2 px-3 mb-3">
                 <div className="w-1 h-4 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full" />
@@ -567,7 +597,7 @@ export default function Sidebar() {
                 {filteredOthersMenu.map(renderMenuItem)}
               </nav>
             </div>
-          )}
+          )} */}
         </div>
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">

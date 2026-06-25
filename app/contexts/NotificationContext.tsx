@@ -50,6 +50,25 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         try {
             setLoading(true);
 
+            // Fetch unread message count from backend
+            const token = localStorage.getItem('token');
+            if (token) {
+                try {
+                    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+                    const response = await fetch(`${apiUrl}/api/messages/notifications/count`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success && data.notifications) {
+                            setUnreadCount(data.notifications.messages || 0);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error fetching notification count:', error);
+                }
+            }
+
             // Get user data from localStorage for dynamic notifications
             let user = null;
             try {

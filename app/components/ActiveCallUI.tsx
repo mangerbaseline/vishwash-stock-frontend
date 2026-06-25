@@ -1,0 +1,338 @@
+'use client';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff } from 'lucide-react';
+import { useCall } from '@/app/contexts/CallContext';
+
+export default function ActiveCallUI() {
+  const { activeCall, endCall, cancelCall, localStreamRef, remoteStreamRef } = useCall();
+  const [callDuration, setCallDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (activeCall && activeCall.status === 'accepted') {
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      // Reset timer
+      setCallDuration(0);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [activeCall]);
+
+  // Attach local stream to video element
+  useEffect(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [activeCall, localStreamRef]);
+
+  // Attach remote stream to video/audio element
+  useEffect(() => {
+    if (remoteStreamRef.current) {
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      }
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.srcObject = remoteStreamRef.current;
+      }
+    }
+  }, [activeCall, remoteStreamRef]);
+
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleEndCall = async () => {
+    if (!activeCall) return;
+    
+    try {
+      if (activeCall.status === 'initiated' || activeCall.status === 'ringing') {
+        await cancelCall(activeCall._id);
+      } else {
+        await endCall(activeCall._id);
+      }
+    } catch (error) {
+      console.error('Error ending call:', error);
+    }
+  };
+
+  const toggleMute = () => {
+    const newMuted = !isMuted;
+    setIsMuted(newMuted);
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach(track => {
+        track.enabled = !newMuted;
+      });
+    }
+  };
+
+  const toggleVideo = () => {
+    const newDisabled = !isVideoEnabled;
+    setIsVideoEnabled(newDisabled);
+    if (localStreamRef.current) {
+      localStreamRef.current.getVideoTracks().forEach(track => {
+        track.enabled = newDisabled;
+      });
+    }
+  };
+
+  const toggleSpeaker = () => {
+    setIsSpeakerOn(!isSpeakerOn);
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.muted = isSpeakerOn;
+    }
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = isSpeakerOn;
+    }
+  };
+
+  if (!activeCall) return null;
+
+  const currentUserId = (() => {
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      return u._id || u.id || '';
+    } catch { return ''; }
+  })();
+  const callerId = typeof activeCall.caller === 'object' ? activeCall.caller._id : activeCall.caller;
+  const otherUser = currentUserId === callerId ? activeCall.receiver : activeCall.caller;
+  const isVideo = activeCall.type === 'video';
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+      {/* Background with blur effect */}
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
+      
+      {/* Remote audio element (always present for voice calls) */}
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
+      {/* Video Call Layout */}
+      {isVideo && activeCall.status === 'accepted' ? (
+        <div className="relative z-10 w-full h-full">
+          {/* Remote video (full screen) */}
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full object-cover"
+          />
+          
+          {/* No remote stream placeholder */}
+          {!remoteStreamRef.current && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="text-center">
+                <div className="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-4">
+                  <User className="w-16 h-16 text-gray-400" />
+                </div>
+                <p className="text-white text-lg">Waiting for video...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Local video (picture-in-picture) */}
+          <div className="absolute top-6 right-6 w-36 h-48 rounded-xl overflow-hidden shadow-2xl border-2 border-white/20 bg-gray-800">
+            {isVideoEnabled ? (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="w-full h-full object-cover mirror"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <VideoOff className="w-8 h-8 text-gray-500" />
+              </div>
+            )}
+          </div>
+
+          {/* Top overlay - User info */}
+          <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-sm rounded-xl px-4 py-3">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-white font-medium">{otherUser.username}</span>
+            <span className="text-white/60 text-sm">{formatDuration(callDuration)}</span>
+          </div>
+
+          {/* Bottom controls overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="flex items-center justify-center gap-5 max-w-md mx-auto">
+              <button
+                onClick={toggleMute}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isMuted
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm'
+                }`}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+              </button>
+
+              <button
+                onClick={toggleVideo}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  !isVideoEnabled
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm'
+                }`}
+                title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
+              >
+                {isVideoEnabled ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
+              </button>
+
+              <button
+                onClick={handleEndCall}
+                className="w-18 h-18 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-2xl hover:shadow-red-500/50 transition-all duration-200 hover:scale-110 p-5"
+                title="End Call"
+              >
+                <PhoneOff className="w-8 h-8 text-white" />
+              </button>
+
+              <button
+                onClick={toggleSpeaker}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isSpeakerOn
+                    ? 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm'
+                    : 'bg-gray-600 hover:bg-gray-700 text-gray-400'
+                }`}
+                title={isSpeakerOn ? 'Turn off speaker' : 'Turn on speaker'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Voice Call / Connecting Layout */
+        <div className="relative z-10 flex flex-col items-center justify-between h-full w-full max-w-2xl mx-auto p-8">
+          {/* Top section - User info */}
+          <div className="flex-1 flex flex-col items-center justify-center text-center">
+            {/* Avatar with pulse ring */}
+            <div className="relative mb-6">
+              {otherUser.avatar ? (
+                <img
+                  src={otherUser.avatar}
+                  alt={otherUser.username}
+                  className="w-32 h-32 rounded-full border-4 border-white/20 shadow-2xl object-cover"
+                />
+              ) : (
+                <div className="w-32 h-32 rounded-full border-4 border-white/20 shadow-2xl bg-gray-700 flex items-center justify-center">
+                  <User className="w-16 h-16 text-gray-400" />
+                </div>
+              )}
+              
+              {/* Pulse ring animation when connecting */}
+              {activeCall.status !== 'accepted' && (
+                <>
+                  <div className="absolute inset-0 rounded-full border-2 border-green-400/50 animate-ping" />
+                  <div className="absolute inset-[-8px] rounded-full border border-green-400/30 animate-pulse" />
+                </>
+              )}
+
+              {/* Online indicator */}
+              <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-4 border-gray-900 rounded-full" />
+            </div>
+
+            {/* User name */}
+            <h2 className="text-3xl font-bold text-white mb-2">
+              {otherUser.username}
+            </h2>
+
+            {/* Call status */}
+            <p className="text-lg text-gray-400 mb-4">
+              {activeCall.status === 'accepted' ? formatDuration(callDuration) : 
+               activeCall.status === 'initiated' ? 'Calling...' : 'Connecting...'}
+            </p>
+
+            {/* Call type badge */}
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full">
+              {isVideo ? (
+                <>
+                  <Video className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm text-white">Video Call</span>
+                </>
+              ) : (
+                <>
+                  <Phone className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-white">Voice Call</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom section - Controls */}
+          <div className="w-full max-w-md">
+            {/* Control buttons */}
+            <div className="flex items-center justify-center gap-6 mb-8">
+              {/* Mute button */}
+              <button
+                onClick={toggleMute}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isMuted
+                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+                title={isMuted ? 'Unmute' : 'Mute'}
+              >
+                {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+              </button>
+
+              {/* End call button */}
+              <button
+                onClick={handleEndCall}
+                className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-2xl hover:shadow-red-500/50 transition-all duration-200 hover:scale-110"
+                title="End Call"
+              >
+                <PhoneOff className="w-10 h-10 text-white" />
+              </button>
+
+              {/* Speaker button */}
+              <button
+                onClick={toggleSpeaker}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isSpeakerOn
+                    ? 'bg-white/10 hover:bg-white/20 text-white'
+                    : 'bg-gray-600 hover:bg-gray-700 text-gray-400'
+                }`}
+                title={isSpeakerOn ? 'Turn off speaker' : 'Turn on speaker'}
+              >
+                {isSpeakerOn ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+              </button>
+            </div>
+
+            {/* Status text */}
+            <p className="text-center text-sm text-gray-500">
+              {isMuted ? 'Microphone muted' : 'Microphone active'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        .mirror {
+          transform: scaleX(-1);
+        }
+      `}</style>
+    </div>
+  );
+}

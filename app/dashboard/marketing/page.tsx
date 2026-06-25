@@ -56,10 +56,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  if (loading) {
-    return <PageSkeleton type="marketing" />;
-  }
-
   useEffect(() => {
     setLoading(true);
     fetch(`${BACKEND_URL}/api/dashboard`)
@@ -95,7 +91,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  if (loading) return <p className="text-white p-6">Loading dashboard...</p>;
+  if (loading) return <PageSkeleton type="marketing" />;
   if (error) return <p className="text-red-500 p-6">Error loading dashboard: {error}</p>;
   if (!stats.length) return <p className="text-white p-6">No data available.</p>;
 

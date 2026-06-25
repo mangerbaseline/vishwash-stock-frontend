@@ -61,6 +61,8 @@ import MovableStockBar from '@/app/components/markets/MovableStockBar';
 import CosmicCharts from '@/app/components/markets/CosmicCharts';
 import AIAgent from '@/app/components/ai/AIAgent';
 import MovableNewsBar from '@/app/components/markets/MovableNewsBar';
+// WebSocket disabled - causing connection errors
+// import { useStockWebSocket } from '@/app/lib/stockWebSocket';
 
 // ============== TYPES ==============
 interface StockData {
@@ -205,6 +207,10 @@ export default function StocksPage() {
 
     const [liveMode, setLiveMode] = useState(false);
     const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+    // WebSocket disabled
+    const wsConnected = false;
+    const liveQuotes = new Map();
+    const wsSubscribe = () => {};
     const [fullscreen, setFullscreen] = useState(false);
     const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
     const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED' | 'PRE-OPEN' | 'POST-CLOSE'>('CLOSED');
@@ -558,6 +564,10 @@ export default function StocksPage() {
             }
 
             if (stocksData.length > 0) {
+                console.log('📊 Raw stocks from API:', stocksData);
+                console.log('   First stock:', stocksData[0]);
+                console.log('   Total stocks:', stocksData.length);
+                
                 const transformedData = stocksData.map((item: any) => ({
                     Symbol: item.symbol || item.Symbol || '',
                     "Company Name": item.companyName || item["Company Name"] || item.symbol || 'Unknown',
@@ -576,11 +586,16 @@ export default function StocksPage() {
                     lastUpdated: item.lastApifySync || item.lastUpdated || new Date().toISOString()
                 }));
 
+                console.log('✅ Transformed stocks:', transformedData);
+                console.log('   Stock symbols:', transformedData.map(s => s.Symbol));
+                console.log('   Stock prices:', transformedData.map(s => `${s.Symbol}: ${s["Current Price"]}`));
+                
                 setStocks(transformedData);
                 setFilteredStocks(transformedData);
                 calculateMarketMetrics(transformedData);
                 setLastUpdate(new Date());
             } else {
+                console.warn('⚠️ No stocks data received from API');
                 setStocks([]);
                 setFilteredStocks([]);
             }
@@ -594,16 +609,37 @@ export default function StocksPage() {
     }, [API_BASE_URL]);
 
     const calculateMarketMetrics = (stocksData: StockData[]) => {
-        const gainers = [...stocksData]
-            .filter(s => (s.Change || 0) > 0)
-            .sort((a, b) => (b.Change || 0) - (a.Change || 0))
-            .slice(0, 5);
+        console.log('📊 Calculating market metrics for', stocksData.length, 'stocks');
+        console.log('   Sample stock:', stocksData[0]);
+        
+        // If all stocks have 0 change, show top/bottom by price as fallback
+        const hasRealChange = stocksData.some(s => (s.Change || 0) !== 0);
+        
+        let gainers, losers;
+        
+        if (hasRealChange) {
+            // Normal mode: filter by actual change
+            gainers = [...stocksData]
+                .filter((s: StockData) => (s.Change || 0) > 0)
+                .sort((a: StockData, b: StockData) => (b.Change || 0) - (a.Change || 0))
+                .slice(0, 5);
+            losers = [...stocksData]
+                .filter((s: StockData) => (s.Change || 0) < 0)
+                .sort((a: StockData, b: StockData) => (a.Change || 0) - (b.Change || 0))
+                .slice(0, 5);
+        } else {
+            // Fallback: show top/bottom by price when no change data available
+            console.log('   ⚠️ No change data, showing top/bottom by price');
+            const sortedByPrice = [...stocksData].sort((a: StockData, b: StockData) => 
+                parseFloat(b["Current Price"] || '0') - parseFloat(a["Current Price"] || '0')
+            );
+            gainers = sortedByPrice.slice(0, 5);
+            losers = sortedByPrice.slice(-5).reverse();
+        }
+        
+        console.log('   Top gainers:', gainers.length, gainers.map(g => g.Symbol));
+        console.log('   Top losers:', losers.length, losers.map(l => l.Symbol));
         setTopGainers(gainers);
-
-        const losers = [...stocksData]
-            .filter(s => (s.Change || 0) < 0)
-            .sort((a, b) => (a.Change || 0) - (b.Change || 0))
-            .slice(0, 5);
         setTopLosers(losers);
 
         const active = [...stocksData]
@@ -626,20 +662,31 @@ export default function StocksPage() {
         }
     }, [API_BASE_URL]);
 
-    // Sync selected stock with Apify
+    // Sync selected stock with Twelve Data (primary), fallback to Apify
     const syncSelectedStock = async () => {
         if (!selectedStock) return;
         setSyncingStock(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/apify-stocks/update/${selectedStock}`, {
+            // First try Twelve Data
+            const response = await fetch(`${API_BASE_URL}/api/twelve-data/update/${selectedStock}`, {
                 method: 'POST',
             });
             const data = await response.json();
             if (data.success) {
                 await fetchStocks(true);
             } else {
-                setError(data.error || 'Failed to sync stock live data');
+                // Fallback to Apify
+                console.warn('⚠️ Twelve Data sync failed, trying Apify fallback...');
+                const apifyResponse = await fetch(`${API_BASE_URL}/api/apify-stocks/update/${selectedStock}`, {
+                    method: 'POST',
+                });
+                const apifyData = await apifyResponse.json();
+                if (apifyData.success) {
+                    await fetchStocks(true);
+                } else {
+                    setError(apifyData.error || 'Failed to sync stock live data');
+                }
             }
         } catch (err: any) {
             setError(err.message || 'Failed to sync stock live data');
@@ -653,6 +700,38 @@ export default function StocksPage() {
     useEffect(() => {
         checkBackendConnection();
         fetchStocks(false);
+        
+    // If stocks don't have change data, trigger Twelve Data full sync
+        const syncIfNeeded = async () => {
+            const stocksData = await fetch(`${API_BASE_URL}/api/db-stocks`).then(r => r.json()).catch(() => null);
+            if (stocksData?.data && stocksData.data.length > 0) {
+                // Check if stocks are missing change data (null/undefined, not just 0)
+                const needsSync = stocksData.data.some((s: any) => 
+                    s.change === null || s.change === undefined || 
+                    s.changePercent === null || s.changePercent === undefined ||
+                    s.lastApifySync === null || s.lastApifySync === undefined
+                );
+                if (needsSync) {
+                    console.log('📡 Stocks missing live data, triggering Twelve Data full sync...');
+                    console.log('   This will auto-discover US stocks from Twelve Data (NASDAQ/NYSE)');
+                    try {
+                        // Use the new sync-all endpoint for auto-discovery (10 stocks default)
+                        await fetch(`${API_BASE_URL}/api/twelve-data/sync-all`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ maxStocks: 10 })
+                        });
+                        // Refresh after sync
+                        setTimeout(() => fetchStocks(true), 5000);
+                    } catch (e) {
+                        console.error('Auto-sync failed:', e);
+                    }
+                }
+            }
+        };
+        
+        // Delay sync to let initial load complete
+        setTimeout(syncIfNeeded, 2000);
     }, [checkBackendConnection, fetchStocks]);
 
     // Auto-refresh and Live Mode timer
@@ -661,9 +740,9 @@ export default function StocksPage() {
 
         const interval = setInterval(async () => {
             if (liveMode && selectedStock && !syncingStock) {
-                // In Live Mode, actively poll Apify API for the selected stock
+                // In Live Mode, actively poll Twelve Data API for the selected stock
                 try {
-                    await fetch(`${API_BASE_URL}/api/apify-stocks/update/${selectedStock}`, { method: 'POST' });
+                    await fetch(`${API_BASE_URL}/api/twelve-data/quote/${selectedStock}`);
                 } catch (e) {
                     console.error('Live Sync Error:', e);
                 }
@@ -1206,17 +1285,23 @@ export default function StocksPage() {
                                         Top Gainers
                                     </h3>
                                     <div className="space-y-3">
-                                        {topGainers.map(stock => (
-                                            <div key={stock.Symbol} className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{stock["Company Name"].substring(0, 15)}</span>
+                                        {topGainers.length > 0 ? (
+                                            topGainers.map(stock => (
+                                                <div key={stock.Symbol} className="flex items-center justify-between">
+                                                    <div>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{stock["Company Name"]?.substring(0, 15) || 'N/A'}</span>
+                                                    </div>
+                                                    <span className="text-green-600 font-medium">
+                                                        +{(stock.Change || 0).toFixed(2)}%
+                                                    </span>
                                                 </div>
-                                                <span className="text-green-600 font-medium">
-                                                    +{(stock.Change || 0).toFixed(2)}%
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                                {stocks.length > 0 ? 'No gainers found' : 'Loading...'}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1227,17 +1312,23 @@ export default function StocksPage() {
                                         Top Losers
                                     </h3>
                                     <div className="space-y-3">
-                                        {topLosers.map(stock => (
-                                            <div key={stock.Symbol} className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{stock["Company Name"].substring(0, 15)}</span>
+                                        {topLosers.length > 0 ? (
+                                            topLosers.map(stock => (
+                                                <div key={stock.Symbol} className="flex items-center justify-between">
+                                                    <div>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{stock["Company Name"]?.substring(0, 15) || 'N/A'}</span>
+                                                    </div>
+                                                    <span className="text-red-600 font-medium">
+                                                        {(stock.Change || 0).toFixed(2)}%
+                                                    </span>
                                                 </div>
-                                                <span className="text-red-600 font-medium">
-                                                    {(stock.Change || 0).toFixed(2)}%
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                                {stocks.length > 0 ? 'No losers found' : 'Loading...'}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -1248,17 +1339,23 @@ export default function StocksPage() {
                                         Most Active
                                     </h3>
                                     <div className="space-y-3">
-                                        {mostActive.map(stock => (
-                                            <div key={stock.Symbol} className="flex items-center justify-between">
-                                                <div>
-                                                    <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
-                                                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{formatVolume(parseInt(stock.Volume || '0'))}</span>
+                                        {mostActive.length > 0 ? (
+                                            mostActive.map(stock => (
+                                                <div key={stock.Symbol} className="flex items-center justify-between">
+                                                    <div>
+                                                        <span className="font-medium text-gray-900 dark:text-white">{stock.Symbol}</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">{formatVolume(parseInt(stock.Volume || '0'))}</span>
+                                                    </div>
+                                                    <span className={`font-medium ${(stock.Change || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                        {(stock.Change || 0).toFixed(2)}%
+                                                    </span>
                                                 </div>
-                                                <span className={`font-medium ${(stock.Change || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {(stock.Change || 0).toFixed(2)}%
-                                                </span>
-                                            </div>
-                                        ))}
+                                            ))
+                                        ) : (
+                                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
+                                                {stocks.length > 0 ? 'No data' : 'Loading...'}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1404,7 +1501,7 @@ export default function StocksPage() {
                                     </thead>
                                     <tbody>
                                         {filteredStocks.length > 0 ? (
-                                            filteredStocks.slice(0, 10).map((stock) => (
+                                            filteredStocks.map((stock) => (
                                                 <tr key={stock.Symbol} className="hover:bg-gray-100 dark:hover:bg-gray-700">
                                                     <td className="py-2 font-medium">{stock.Symbol}</td>
                                                     <td className="py-2">{stock["Company Name"]}</td>
