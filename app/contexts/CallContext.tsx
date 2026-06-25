@@ -41,6 +41,8 @@ interface CallContextType {
   setIncomingCall: (call: Call | null) => void;
   localStreamRef: React.RefObject<MediaStream | null>;
   remoteStreamRef: React.RefObject<MediaStream | null>;
+  isScreenSharing: boolean;
+  toggleScreenShare: () => Promise<void>;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -62,6 +64,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
+  const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   // Refs to hold latest state values for WebSocket callbacks (avoid stale closures)
   const activeCallRef = useRef<Call | null>(null);
@@ -113,6 +117,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       // Get local media stream
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: activeCallRef.current?.type === 'video' });
       localStreamRef.current = stream;
+      if (activeCallRef.current?.type === 'video') {
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) originalVideoTrackRef.current = videoTrack;
+      }
 
       // Add local tracks to peer connection
       stream.getTracks().forEach(track => {
@@ -180,6 +188,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       remoteStreamRef.current.getTracks().forEach(track => track.stop());
       remoteStreamRef.current = null;
     }
+    if (originalVideoTrackRef.current) {
+      originalVideoTrackRef.current.stop();
+      originalVideoTrackRef.current = null;
+    }
+    setIsScreenSharing(false);
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
@@ -198,6 +211,59 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       }));
     }
   }, []);
+
+  // Screen sharing
+  const toggleScreenShare = useCallback(async () => {
+    if (!peerConnectionRef.current || !localStreamRef.current) return;
+
+    try {
+      if (isScreenSharing) {
+        // Stop screen sharing and revert to camera
+        const senders = peerConnectionRef.current.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        
+        if (videoSender && originalVideoTrackRef.current) {
+          await videoSender.replaceTrack(originalVideoTrackRef.current);
+          
+          // Remove screen track from local stream and add camera track
+          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (currentVideoTrack) {
+            currentVideoTrack.stop();
+            localStreamRef.current.removeTrack(currentVideoTrack);
+          }
+          localStreamRef.current.addTrack(originalVideoTrackRef.current);
+        }
+        setIsScreenSharing(false);
+      } else {
+        // Start screen sharing
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+
+        screenTrack.onended = () => {
+          // If user stops sharing via browser UI, toggle back
+          toggleScreenShare();
+        };
+
+        const senders = peerConnectionRef.current.getSenders();
+        const videoSender = senders.find(s => s.track?.kind === 'video');
+        
+        if (videoSender) {
+          await videoSender.replaceTrack(screenTrack);
+          
+          // Update local stream to show screen share
+          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (currentVideoTrack) {
+            localStreamRef.current.removeTrack(currentVideoTrack);
+          }
+          localStreamRef.current.addTrack(screenTrack);
+        }
+        setIsScreenSharing(true);
+      }
+    } catch (err) {
+      console.error('Error toggling screen share:', err);
+      setIsScreenSharing(false);
+    }
+  }, [isScreenSharing]);
 
   // ── Ringtone & timeout helpers (defined BEFORE WebSocket useEffect) ──
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -708,7 +774,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       fetchCallHistory,
       setIncomingCall,
       localStreamRef,
-      remoteStreamRef
+      remoteStreamRef,
+      isScreenSharing,
+      toggleScreenShare
     }}>
       {children}
     </CallContext.Provider>

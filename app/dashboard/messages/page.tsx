@@ -115,6 +115,8 @@ export default function MessagesPage() {
     const prevMessagesLengthRef = useRef<number>(0);
     const headerRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLDivElement>(null);
+    const messageWsRef = useRef<WebSocket | null>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for polling to avoid stale closures
     const fetchRoomMessagesRef = useRef<(roomName: string) => Promise<void>>(async () => {});
@@ -197,7 +199,72 @@ export default function MessagesPage() {
     fetchRoomMessagesRef.current = fetchRoomMessages;
     selectedRoomRef.current = selectedRoom;
 
-    // Polling for new messages in rooms (only when tab is visible)
+    // Real-time WebSocket connection for messages (typing, read receipts)
+    useEffect(() => {
+        let ws: WebSocket | null = null;
+        let reconnectTimeout: NodeJS.Timeout | null = null;
+        
+        const connectWs = () => {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const wsUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000').replace(/^http/, 'ws');
+            ws = new WebSocket(`${wsUrl}/ws/messages`);
+            messageWsRef.current = ws;
+
+            ws.onopen = () => {
+                ws?.send(JSON.stringify({ type: 'AUTH', token }));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'AUTH_SUCCESS') {
+                        // Once authenticated, join the current room
+                        if (selectedRoomRef.current && !currentConversation) {
+                            ws?.send(JSON.stringify({ type: 'JOIN_ROOM', room: selectedRoomRef.current }));
+                        } else if (currentConversation) {
+                            ws?.send(JSON.stringify({ type: 'JOIN_ROOM', room: currentConversation._id }));
+                        }
+                    } else if (data.type === 'TYPING_START') {
+                        setTypingUsers(prev => {
+                            const newSet = new Set(prev);
+                            newSet.add(data.username);
+                            return newSet;
+                        });
+                    } else if (data.type === 'TYPING_STOP') {
+                        setTypingUsers(prev => {
+                            const newSet = new Set(prev);
+                            newSet.delete(data.username);
+                            return newSet;
+                        });
+                    } else if (data.type === 'MESSAGES_READ_CONFIRM') {
+                        // A user in the room read the messages, trigger a refresh to show double ticks
+                        if (selectedRoomRef.current === data.room) {
+                            fetchRoomMessagesRef.current(data.room);
+                        } else if (currentConversation && currentConversation._id === data.room) {
+                            fetchConversationMessages(data.room);
+                        }
+                    }
+                } catch (e) {}
+            };
+
+            ws.onclose = () => {
+                // Reconnect
+                reconnectTimeout = setTimeout(connectWs, 3000);
+            };
+        };
+
+        connectWs();
+
+        return () => {
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
+            if (ws) ws.close();
+        };
+    }, []);
+
+    // Also fetch on interval as a fallback backup for missed messages, but less frequently (15s)
     useEffect(() => {
         if (selectedRoom && !currentConversation) {
             const interval = setInterval(() => {
@@ -207,13 +274,14 @@ export default function MessagesPage() {
                         fetchRoomMessagesRef.current(room);
                     }
                 }
-            }, 5000);
+            }, 15000);
             setPollingInterval(interval);
             return () => {
                 if (interval) clearInterval(interval);
             };
         }
     }, [selectedRoom, currentConversation]);
+
 
     // Initialize - run once and in parallel
     useEffect(() => {
@@ -435,7 +503,33 @@ export default function MessagesPage() {
         else if (selectedRoom) sendRoomMessage();
     };
 
-    const handleMessageInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => setMessageInput(e.target.value);
+    const handleMessageInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setMessageInput(e.target.value);
+        
+        // Emit typing status via WebSocket
+        if (messageWsRef.current?.readyState === WebSocket.OPEN) {
+            const room = currentConversation ? currentConversation._id : selectedRoom;
+            if (room && user) {
+                messageWsRef.current.send(JSON.stringify({
+                    type: 'TYPING_START',
+                    room,
+                    username: user.username || user.email.split('@')[0]
+                }));
+                
+                if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+                
+                typingTimeoutRef.current = setTimeout(() => {
+                    if (messageWsRef.current?.readyState === WebSocket.OPEN) {
+                        messageWsRef.current.send(JSON.stringify({
+                            type: 'TYPING_STOP',
+                            room,
+                            username: user.username || user.email.split('@')[0]
+                        }));
+                    }
+                }, 2000);
+            }
+        }
+    };
 
     useEffect(() => {
         if (currentConversation) {
@@ -870,7 +964,20 @@ export default function MessagesPage() {
                         </div>
 
                         {/* Message Input */}
-                        <div ref={inputRef} className="flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                        <div ref={inputRef} className="relative flex-shrink-0 p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                            {/* Typing Indicator */}
+                            {typingUsers.size > 0 && (
+                                <div className="absolute -top-8 left-4 right-4 flex items-center gap-2 text-sm text-gray-500 italic">
+                                    <div className="flex gap-1">
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                    <span>
+                                        {Array.from(typingUsers).join(', ')} {typingUsers.size === 1 ? 'is' : 'are'} typing...
+                                    </span>
+                                </div>
+                            )}
                             <div className="flex items-end gap-2">
                                 <textarea value={messageInput} onChange={handleMessageInput} onKeyDown={handleKeyPress} placeholder={selectedRoom && !currentConversation ? `Message #${selectedRoom}...` : "Type a message..."} rows={1} className="flex-1 pl-4 pr-12 py-3 bg-gray-100 dark:bg-gray-800 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500" style={{ minHeight: '44px', maxHeight: '120px' }} />
                                 <button onClick={handleSendMessage} disabled={sending || !messageInput.trim()} className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">

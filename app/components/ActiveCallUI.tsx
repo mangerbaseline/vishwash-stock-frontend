@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff, MonitorUp, MonitorOff } from 'lucide-react';
 import { useCall } from '@/app/contexts/CallContext';
 
 export default function ActiveCallUI() {
-  const { activeCall, endCall, cancelCall, localStreamRef, remoteStreamRef } = useCall();
+  const { activeCall, endCall, cancelCall, localStreamRef, remoteStreamRef, isScreenSharing, toggleScreenShare } = useCall();
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
@@ -198,6 +198,18 @@ export default function ActiveCallUI() {
                 title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
               >
                 {isVideoEnabled ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
+              </button>
+
+              <button
+                onClick={toggleScreenShare}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isScreenSharing
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm'
+                }`}
+                title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+              >
+                {isScreenSharing ? <MonitorOff className="w-6 h-6" /> : <MonitorUp className="w-6 h-6" />}
               </button>
 
               <button
