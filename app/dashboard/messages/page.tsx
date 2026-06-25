@@ -244,7 +244,7 @@ export default function MessagesPage() {
                         if (selectedRoomRef.current === data.room) {
                             fetchRoomMessagesRef.current(data.room);
                         } else if (currentConversation && currentConversation._id === data.room) {
-                            fetchConversationMessages(data.room);
+                            fetchRoomMessagesRef.current(data.room);
                         }
                     }
                 } catch (e) {}
