@@ -210,7 +210,7 @@ export default function StocksPage() {
     // WebSocket disabled
     const wsConnected = false;
     const liveQuotes = new Map();
-    const wsSubscribe = () => {};
+    const wsSubscribe = () => { };
     const [fullscreen, setFullscreen] = useState(false);
     const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
     const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED' | 'PRE-OPEN' | 'POST-CLOSE'>('CLOSED');
@@ -567,7 +567,7 @@ export default function StocksPage() {
                 console.log('📊 Raw stocks from API:', stocksData);
                 console.log('   First stock:', stocksData[0]);
                 console.log('   Total stocks:', stocksData.length);
-                
+
                 const transformedData = stocksData.map((item: any) => ({
                     Symbol: item.symbol || item.Symbol || '',
                     "Company Name": item.companyName || item["Company Name"] || item.symbol || 'Unknown',
@@ -587,9 +587,9 @@ export default function StocksPage() {
                 }));
 
                 console.log('✅ Transformed stocks:', transformedData);
-                console.log('   Stock symbols:', transformedData.map(s => s.Symbol));
-                console.log('   Stock prices:', transformedData.map(s => `${s.Symbol}: ${s["Current Price"]}`));
-                
+                console.log('   Stock symbols:', transformedData.map((s: any) => s.Symbol));
+                console.log('   Stock prices:', transformedData.map((s: any) => `${s.Symbol}: ${s["Current Price"]}`));
+
                 setStocks(transformedData);
                 setFilteredStocks(transformedData);
                 calculateMarketMetrics(transformedData);
@@ -611,12 +611,12 @@ export default function StocksPage() {
     const calculateMarketMetrics = (stocksData: StockData[]) => {
         console.log('📊 Calculating market metrics for', stocksData.length, 'stocks');
         console.log('   Sample stock:', stocksData[0]);
-        
+
         // If all stocks have 0 change, show top/bottom by price as fallback
         const hasRealChange = stocksData.some(s => (s.Change || 0) !== 0);
-        
+
         let gainers, losers;
-        
+
         if (hasRealChange) {
             // Normal mode: filter by actual change
             gainers = [...stocksData]
@@ -630,13 +630,13 @@ export default function StocksPage() {
         } else {
             // Fallback: show top/bottom by price when no change data available
             console.log('   ⚠️ No change data, showing top/bottom by price');
-            const sortedByPrice = [...stocksData].sort((a: StockData, b: StockData) => 
+            const sortedByPrice = [...stocksData].sort((a: StockData, b: StockData) =>
                 parseFloat(b["Current Price"] || '0') - parseFloat(a["Current Price"] || '0')
             );
             gainers = sortedByPrice.slice(0, 5);
             losers = sortedByPrice.slice(-5).reverse();
         }
-        
+
         console.log('   Top gainers:', gainers.length, gainers.map(g => g.Symbol));
         console.log('   Top losers:', losers.length, losers.map(l => l.Symbol));
         setTopGainers(gainers);
@@ -700,14 +700,14 @@ export default function StocksPage() {
     useEffect(() => {
         checkBackendConnection();
         fetchStocks(false);
-        
-    // If stocks don't have change data, trigger Twelve Data full sync
+
+        // If stocks don't have change data, trigger Twelve Data full sync
         const syncIfNeeded = async () => {
             const stocksData = await fetch(`${API_BASE_URL}/api/db-stocks`).then(r => r.json()).catch(() => null);
             if (stocksData?.data && stocksData.data.length > 0) {
                 // Check if stocks are missing change data (null/undefined, not just 0)
-                const needsSync = stocksData.data.some((s: any) => 
-                    s.change === null || s.change === undefined || 
+                const needsSync = stocksData.data.some((s: any) =>
+                    s.change === null || s.change === undefined ||
                     s.changePercent === null || s.changePercent === undefined ||
                     s.lastApifySync === null || s.lastApifySync === undefined
                 );
@@ -729,7 +729,7 @@ export default function StocksPage() {
                 }
             }
         };
-        
+
         // Delay sync to let initial load complete
         setTimeout(syncIfNeeded, 2000);
     }, [checkBackendConnection, fetchStocks]);
@@ -1217,8 +1217,8 @@ export default function StocksPage() {
 
                                 <button
                                     onClick={() => setLiveMode(!liveMode)}
-                                    className={`px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all duration-300 ${liveMode 
-                                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/40 animate-pulse' 
+                                    className={`px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all duration-300 ${liveMode
+                                        ? 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/40 animate-pulse'
                                         : 'bg-green-600 hover:bg-green-700 text-white'}`}
                                 >
                                     {liveMode ? (
