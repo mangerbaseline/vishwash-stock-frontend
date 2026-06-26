@@ -342,10 +342,10 @@ export default function Sidebar() {
               if (item.children) e.preventDefault();
               if (window.innerWidth < 1120) setIsSidebarOpen(false);
             }}
-            className="flex items-center gap-3 flex-1"
+            className="flex items-center gap-3 flex-1 min-w-0"
           >
             <span className={`
-              transition-all duration-200
+              shrink-0 transition-all duration-200
               ${isActive || isCurrentRoute || hasActiveChild
                 ? 'text-indigo-600 dark:text-indigo-400 scale-110'
                 : 'text-gray-500 dark:text-gray-500 group-hover:scale-110 group-hover:text-indigo-500'
@@ -355,7 +355,7 @@ export default function Sidebar() {
             </span>
 
             <span className={`
-              text-sm font-medium transition-all duration-200
+              text-sm font-medium truncate transition-all duration-200
               ${isActive || isCurrentRoute || hasActiveChild
                 ? 'text-indigo-600 dark:text-indigo-400'
                 : 'text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white'
@@ -365,31 +365,31 @@ export default function Sidebar() {
             </span>
 
             {item.badge && (
-              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
+              <span className="ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
                 {item.badge}
               </span>
             )}
 
             {item.isNew && (
-              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full animate-pulse">
+              <span className="ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full animate-pulse">
                 New
               </span>
             )}
             {item.isUpdated && (
-              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
+              <span className="ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">
                 Updated
               </span>
             )}
           </Link>
 
           {!item.children && item.notifyCount && (
-            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium bg-red-500 text-white rounded-full animate-pulse-subtle">
+            <span className="flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium bg-red-500 text-white rounded-full animate-pulse-subtle shrink-0">
               {item.notifyCount}
             </span>
           )}
 
           {!item.children && item.pro && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full">
+            <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full shrink-0">
               <Sparkles className="w-3 h-3" />
               Pro
             </span>
@@ -397,7 +397,7 @@ export default function Sidebar() {
 
           {item.children && (
             <span className={`
-              ml-2 transition-all duration-300
+              ml-2 shrink-0 transition-all duration-300
               ${isActive ? 'rotate-180 text-indigo-600 dark:text-indigo-400' : 'text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300'}
             `}>
               <ChevronDown size={16} />
@@ -426,29 +426,29 @@ export default function Sidebar() {
                     }
                   `}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span className={`
-                      transition-all duration-200
+                      shrink-0 transition-all duration-200
                       ${isChildActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500 group-hover:text-indigo-500'}
                     `}>
                       {child.icon || <div className="w-1.5 h-1.5 bg-gray-300 rounded-full group-hover:bg-indigo-500 transition-colors" />}
                     </span>
-                    <span className="text-sm">{child.label}</span>
+                    <span className="text-sm truncate">{child.label}</span>
 
                     {child.badge && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
+                      <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-full">
                         {child.badge}
                       </span>
                     )}
                     {child.isNew && (
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full animate-pulse">
+                      <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-medium bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-full animate-pulse">
                         New
                       </span>
                     )}
                   </div>
 
                   {child.pro && (
-                    <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full">
+                    <span className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full shrink-0">
                       <Sparkles className="w-3 h-3" />
                       Pro
                     </span>
@@ -464,30 +464,34 @@ export default function Sidebar() {
 
   return (
     <>
+      {/* Mobile hamburger button - positioned to work with header */}
       <button
         onClick={() => setIsSidebarOpen(true)}
-        className="fixed top-4 left-4 z-50 p-2.5 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 block lg:hidden hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-105"
+        className="fixed top-20 left-4 z-40 p-2.5 rounded-xl bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 lg:hidden hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-105"
         aria-label="Open sidebar"
       >
         <Menu className="w-5 h-5 text-gray-700 dark:text-gray-300" />
       </button>
 
+      {/* Backdrop overlay */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 block lg:hidden animate-fade-in"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden animate-fade-in"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-72 bg-white dark:bg-gray-900 shadow-2xl
+          fixed top-0 left-0 z-50 h-full w-72 sm:w-80 bg-white dark:bg-gray-900 shadow-2xl
           transform transition-all duration-300 ease-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0 lg:static lg:block
           overflow-y-auto overflow-x-hidden
           flex flex-col
+          scrollbar-hide
         `}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         <div className="sticky top-0 bg-white dark:bg-gray-900 z-10 px-4 py-5 border-b border-gray-200 dark:border-gray-800">
           <Link
@@ -501,18 +505,18 @@ export default function Sidebar() {
                 <span className="text-2xl font-bold text-white">V</span>
               </div>
             </div>
-            <div>
-              <h2 className="font-bold text-xl bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-xl bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent truncate">
                 ABC
               </h2>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400 -mt-0.5">
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 -mt-0.5 truncate">
                 Enterprise Dashboard
               </p>
             </div>
 
             <button
               onClick={() => setIsSidebarOpen(false)}
-              className="ml-auto p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 lg:hidden transition-colors shrink-0"
               aria-label="Close sidebar"
             >
               <X className="w-5 h-5 text-gray-500" />
@@ -528,14 +532,14 @@ export default function Sidebar() {
                 <img
                   src={getUserPhoto()}
                   alt={getUserDisplayName()}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-gray-800"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-gray-800 shrink-0"
                   onError={(e) => {
                     console.error("Image failed to load");
                     e.currentTarget.style.display = 'none';
                   }}
                 />
               ) : (
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
                   <span className="text-white text-sm font-bold">
                     {getUserInitial()}
                   </span>
@@ -549,7 +553,7 @@ export default function Sidebar() {
                   {user.email}
                 </p>
               </div>
-              <div className="px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg">
+              <div className="shrink-0 px-2 py-1 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg">
                 <span className="text-[10px] font-medium text-indigo-700 dark:text-indigo-300 uppercase">
                   {user.role || 'user'}
                 </span>
@@ -585,7 +589,8 @@ export default function Sidebar() {
             </div>
           )}
 
-          {/* {filteredOthersMenu.length > 0 && (
+          {/* Resources section - uncommented for mobile */}
+          {filteredOthersMenu.length > 0 && (
             <div className="mb-6">
               <div className="flex items-center gap-2 px-3 mb-3">
                 <div className="w-1 h-4 bg-gradient-to-b from-purple-500 to-pink-600 rounded-full" />
@@ -597,18 +602,18 @@ export default function Sidebar() {
                 {filteredOthersMenu.map(renderMenuItem)}
               </nav>
             </div>
-          )} */}
+          )}
         </div>
 
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shrink-0" />
+              <span className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 System Status: Online
               </span>
             </div>
-            <span className="text-[10px] text-gray-400">
+            <span className="text-[10px] text-gray-400 shrink-0">
               v1.0.0
             </span>
           </div>

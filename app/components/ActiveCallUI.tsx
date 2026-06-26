@@ -10,6 +10,7 @@ export default function ActiveCallUI() {
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isVoiceScreenShareReady, setIsVoiceScreenShareReady] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -42,7 +43,7 @@ export default function ActiveCallUI() {
     if (localVideoRef.current && localStreamRef.current) {
       localVideoRef.current.srcObject = localStreamRef.current;
     }
-  }, [activeCall, localStreamRef]);
+  }, [activeCall, localStreamRef, isScreenSharing]);
 
   // Attach remote stream to video/audio element
   useEffect(() => {
@@ -66,11 +67,18 @@ export default function ActiveCallUI() {
     if (!activeCall) return;
     
     try {
+      // Try to cancel first (for ringing/initiated calls)
       if (activeCall.status === 'initiated' || activeCall.status === 'ringing') {
-        await cancelCall(activeCall._id);
-      } else {
-        await endCall(activeCall._id);
+        try {
+          await cancelCall(activeCall._id);
+          return;
+        } catch (cancelErr: any) {
+          // If cancel fails (e.g., status changed server-side), fall through to endCall
+          console.warn('Cancel failed, trying endCall instead:', cancelErr.message);
+        }
       }
+      // Either the call was already accepted, or cancel failed - try endCall
+      await endCall(activeCall._id);
     } catch (error) {
       console.error('Error ending call:', error);
     }
@@ -105,6 +113,15 @@ export default function ActiveCallUI() {
       remoteVideoRef.current.muted = isSpeakerOn;
     }
   };
+
+  const handleToggleScreenShare = async () => {
+    await toggleScreenShare();
+  };
+
+  // Sync voiceScreenShareReady with isScreenSharing for voice calls
+  useEffect(() => {
+    setIsVoiceScreenShareReady(isScreenSharing);
+  }, [isScreenSharing]);
 
   if (!activeCall) return null;
 
@@ -318,6 +335,19 @@ export default function ActiveCallUI() {
                 <PhoneOff className="w-10 h-10 text-white" />
               </button>
 
+              {/* Screen share button */}
+              <button
+                onClick={handleToggleScreenShare}
+                className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
+                  isScreenSharing || isVoiceScreenShareReady
+                    ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                    : 'bg-white/10 hover:bg-white/20 text-white'
+                }`}
+                title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+              >
+                {isScreenSharing || isVoiceScreenShareReady ? <MonitorOff className="w-6 h-6" /> : <MonitorUp className="w-6 h-6" />}
+              </button>
+
               {/* Speaker button */}
               <button
                 onClick={toggleSpeaker}
@@ -335,7 +365,36 @@ export default function ActiveCallUI() {
             {/* Status text */}
             <p className="text-center text-sm text-gray-500">
               {isMuted ? 'Microphone muted' : 'Microphone active'}
+              {isScreenSharing && ' • Screen sharing'}
             </p>
+
+            {/* Screen share preview overlay during voice call */}
+            {isScreenSharing && activeCall.status === 'accepted' && (
+              <div className="mt-4 w-full">
+                <div className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-contain"
+                  />
+                  {/* Screen share indicator */}
+                  <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                    <MonitorUp className="w-4 h-4 text-blue-400" />
+                    <span className="text-xs text-white font-medium">Screen sharing</span>
+                  </div>
+                  {/* Stop screen sharing hint */}
+                  <button
+                    onClick={handleToggleScreenShare}
+                    className="absolute top-3 right-3 bg-red-500/80 hover:bg-red-600 rounded-lg px-3 py-1.5 text-xs text-white font-medium transition-colors"
+                    title="Stop sharing screen"
+                  >
+                    Stop sharing
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

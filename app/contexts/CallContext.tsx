@@ -65,6 +65,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const originalVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const screenTrackRef = useRef<MediaStreamTrack | null>(null);
+  const hasVideoSenderRef = useRef(false);
+  const isScreenSharingRef = useRef(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   // Refs to hold latest state values for WebSocket callbacks (avoid stale closures)
@@ -114,8 +117,28 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnectionRef.current = pc;
 
-      // Get local media stream
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: activeCallRef.current?.type === 'video' });
+      // Get local media stream - gracefully handle missing devices
+      let stream: MediaStream;
+      try {
+        // First attempt: request audio + video if video call
+        const needsVideo = activeCallRef.current?.type === 'video';
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: true, 
+          video: needsVideo 
+        });
+      } catch (mediaError: any) {
+        console.warn('❌ Initial getUserMedia failed, trying audio-only:', mediaError.name);
+        try {
+          // Second attempt: audio only (for voice calls or when video device is missing)
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        } catch (audioError: any) {
+          console.warn('❌ Audio-only getUserMedia also failed:', audioError.name);
+          // Third attempt: no media at all - create empty stream for peer connection
+          // This allows the call to proceed without local media
+          stream = new MediaStream();
+          console.log('📞 Proceeding with empty media stream (no local mic/camera)');
+        }
+      }
       localStreamRef.current = stream;
       if (activeCallRef.current?.type === 'video') {
         const videoTrack = stream.getVideoTracks()[0];
@@ -192,7 +215,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       originalVideoTrackRef.current.stop();
       originalVideoTrackRef.current = null;
     }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+      screenTrackRef.current = null;
+    }
     setIsScreenSharing(false);
+    isScreenSharingRef.current = false;
+    hasVideoSenderRef.current = false;
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
@@ -214,56 +243,121 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
   // Screen sharing
   const toggleScreenShare = useCallback(async () => {
-    if (!peerConnectionRef.current || !localStreamRef.current) return;
+    if (!peerConnectionRef.current) {
+      console.warn('🖥️ Cannot share screen: no peer connection');
+      return;
+    }
+    if (!localStreamRef.current) {
+      console.warn('🖥️ Cannot share screen: no local stream');
+      return;
+    }
+
+    const currentlySharing = isScreenSharingRef.current;
 
     try {
-      if (isScreenSharing) {
-        // Stop screen sharing and revert to camera
+      if (currentlySharing) {
+        // ── Stop screen sharing ──
+        console.log('🖥️ Stopping screen share');
+        // Stop screen track
+        if (screenTrackRef.current) {
+          screenTrackRef.current.stop();
+          screenTrackRef.current = null;
+        }
+
         const senders = peerConnectionRef.current.getSenders();
         const videoSender = senders.find(s => s.track?.kind === 'video');
-        
+
         if (videoSender && originalVideoTrackRef.current) {
+          // Revert to original camera track
           await videoSender.replaceTrack(originalVideoTrackRef.current);
-          
-          // Remove screen track from local stream and add camera track
-          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (currentVideoTrack) {
-            currentVideoTrack.stop();
-            localStreamRef.current.removeTrack(currentVideoTrack);
-          }
+        } else if (videoSender && !originalVideoTrackRef.current) {
+          // Was screen sharing during voice call — remove the video sender entirely
+          peerConnectionRef.current.removeTrack(videoSender);
+          hasVideoSenderRef.current = false;
+        }
+
+        // Clean up local stream: remove screen track, restore camera track if available
+        const screenVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (screenVideoTrack) {
+          localStreamRef.current.removeTrack(screenVideoTrack);
+        }
+        if (originalVideoTrackRef.current) {
           localStreamRef.current.addTrack(originalVideoTrackRef.current);
         }
-        setIsScreenSharing(false);
-      } else {
-        // Start screen sharing
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        const screenTrack = screenStream.getVideoTracks()[0];
 
+        setIsScreenSharing(false);
+        isScreenSharingRef.current = false;
+      } else {
+        // ── Start screen sharing ──
+        console.log('🖥️ Starting screen share');
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false } as DisplayMediaStreamOptions);
+        const screenTrack = screenStream.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+
+        // Handle browser UI stop (user clicks "Stop sharing" in browser chrome)
         screenTrack.onended = () => {
-          // If user stops sharing via browser UI, toggle back
-          toggleScreenShare();
+          console.log('🖥️ Screen sharing stopped via browser UI');
+          // Reset state without calling toggleScreenShare (avoids re-entrancy)
+          if (screenTrackRef.current) {
+            screenTrackRef.current.stop();
+            screenTrackRef.current = null;
+          }
+          // Revert peer connection
+          const senders = peerConnectionRef.current?.getSenders();
+          const videoSender = senders?.find(s => s.track?.kind === 'video');
+          if (videoSender && originalVideoTrackRef.current && peerConnectionRef.current) {
+            videoSender.replaceTrack(originalVideoTrackRef.current);
+          } else if (videoSender && peerConnectionRef.current) {
+            peerConnectionRef.current.removeTrack(videoSender);
+            hasVideoSenderRef.current = false;
+          }
+          // Clean local stream
+          if (localStreamRef.current) {
+            const st = localStreamRef.current.getVideoTracks()[0];
+            if (st) localStreamRef.current.removeTrack(st);
+            if (originalVideoTrackRef.current) {
+              localStreamRef.current.addTrack(originalVideoTrackRef.current);
+            }
+          }
+          setIsScreenSharing(false);
+          isScreenSharingRef.current = false;
         };
 
         const senders = peerConnectionRef.current.getSenders();
-        const videoSender = senders.find(s => s.track?.kind === 'video');
-        
+        let videoSender = senders.find(s => s.track?.kind === 'video');
+
         if (videoSender) {
+          // Video call: replace existing video track with screen track
           await videoSender.replaceTrack(screenTrack);
-          
-          // Update local stream to show screen share
-          const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (currentVideoTrack) {
-            localStreamRef.current.removeTrack(currentVideoTrack);
+        } else {
+          // Voice call: add a new video track sender for the screen
+          videoSender = peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
+          if (!videoSender) {
+            throw new Error('Failed to add screen video track to peer connection');
           }
-          localStreamRef.current.addTrack(screenTrack);
+          hasVideoSenderRef.current = true;
         }
+
+        // Update local stream: remove camera track, add screen track
+        const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
+        if (currentVideoTrack && currentVideoTrack !== originalVideoTrackRef.current) {
+          localStreamRef.current.removeTrack(currentVideoTrack);
+        } else if (currentVideoTrack) {
+          // Keep original reference but remove from stream for now
+          localStreamRef.current.removeTrack(currentVideoTrack);
+        }
+        // Don't stop the camera track — we'll reuse it later
+        localStreamRef.current.addTrack(screenTrack);
+
         setIsScreenSharing(true);
+        isScreenSharingRef.current = true;
       }
     } catch (err) {
       console.error('Error toggling screen share:', err);
       setIsScreenSharing(false);
+      isScreenSharingRef.current = false;
     }
-  }, [isScreenSharing]);
+  }, []); // No deps - use refs to avoid stale closures
 
   // ── Ringtone & timeout helpers (defined BEFORE WebSocket useEffect) ──
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);

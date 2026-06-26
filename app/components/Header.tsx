@@ -3,7 +3,8 @@
 import '../globals.css';
 import {
   Search, Sun, Moon, Bell, Menu, X, ChevronDown, Layout,
-  Home, Settings, Users, FileText, Sparkles, Zap, Activity
+  Home, Settings, Users, FileText, Sparkles, Zap, Activity,
+  TrendingUp, MessageCircle, Calendar, User as UserIcon
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
@@ -374,25 +375,29 @@ export default function Header({ user: propUser }: HeaderProps) {
               </div>
             )}
 
-            <nav className="space-y-1">
-              {(isAdmin ? [
-                { href: '/dashboard', icon: Home, label: 'Dashboard' },
-                { href: '/dashboard/analytics', icon: FileText, label: 'Analytics' },
-                { href: '/dashboard/admin/users', icon: Users, label: 'Users' },
-                { href: '/dashboard/settings', icon: Settings, label: 'Settings' }
-              ] : [
-                { href: '/dashboard', icon: Home, label: 'Dashboard' },
-                { href: '/dashboard/settings', icon: Settings, label: 'Settings' }
-              ]).map((item, index) => (
+            {isAdmin && (
+              <div className="flex items-center justify-between mb-4 p-3 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 backdrop-blur-sm rounded-xl">
+                <span className="text-sm font-medium text-red-700 dark:text-red-400">Admin Panel</span>
+              </div>
+            )}
+            <nav className="grid grid-cols-2 gap-2">
+              {[
+                { href: '/dashboard/stock-dashboard', icon: TrendingUp, label: 'Stocks' },
+                { href: '/dashboard/messages', icon: MessageCircle, label: 'Messages' },
+                { href: '/dashboard/calendar', icon: Calendar, label: 'Calendar' },
+                { href: '/dashboard/profile', icon: UserIcon, label: 'Profile' },
+                { href: '/dashboard/crm', icon: Users, label: 'CRM' },
+                { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+              ].map((item, index) => (
                 <Link
                   key={item.label}
                   href={item.href}
                   onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 dark:hover:from-indigo-900/20 dark:hover:to-purple-900/20 rounded-xl transition-all duration-300 hover:scale-105 hover:translate-x-2 group animate-slide-in"
+                  className="flex flex-col items-center justify-center gap-1.5 px-3 py-3 text-gray-700 dark:text-gray-300 hover:bg-gradient-to-br hover:from-indigo-50 hover:to-purple-50 dark:hover:from-indigo-900/20 dark:hover:to-purple-900/20 rounded-xl transition-all duration-300 hover:scale-105 group animate-slide-in text-center"
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <item.icon className="w-5 h-5 transition-transform duration-300 group-hover:rotate-12 group-hover:text-indigo-500" />
-                  <span className="font-medium">{item.label}</span>
+                  <span className="font-medium text-xs">{item.label}</span>
                 </Link>
               ))}
             </nav>
