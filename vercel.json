@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cross-env NODE_OPTIONS=--max-old-space-size=8192 next build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install"
+}
