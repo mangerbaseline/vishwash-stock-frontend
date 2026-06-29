@@ -5,12 +5,13 @@ import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff, 
 import { useCall } from '@/app/contexts/CallContext';
 
 export default function ActiveCallUI() {
-  const { activeCall, endCall, cancelCall, localStreamRef, remoteStreamRef, isScreenSharing, toggleScreenShare } = useCall();
+  const { activeCall, endCall, cancelCall, localStreamRef, remoteStreamRef, remoteStreamVersion, isScreenSharing, toggleScreenShare } = useCall();
   const [callDuration, setCallDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isVoiceScreenShareReady, setIsVoiceScreenShareReady] = useState(false);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -48,6 +49,7 @@ export default function ActiveCallUI() {
   // Attach remote stream to video/audio element
   useEffect(() => {
     if (remoteStreamRef.current) {
+      console.log('🎥 Attaching remote stream to elements, version:', remoteStreamVersion);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current;
       }
@@ -55,7 +57,7 @@ export default function ActiveCallUI() {
         remoteAudioRef.current.srcObject = remoteStreamRef.current;
       }
     }
-  }, [activeCall, remoteStreamRef]);
+  }, [activeCall, remoteStreamRef, remoteStreamVersion]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -105,12 +107,14 @@ export default function ActiveCallUI() {
   };
 
   const toggleSpeaker = () => {
-    setIsSpeakerOn(!isSpeakerOn);
+    const newSpeakerOn = !isSpeakerOn;
+    setIsSpeakerOn(newSpeakerOn);
+    // When speaker is ON, audio should NOT be muted (muted=false)
     if (remoteAudioRef.current) {
-      remoteAudioRef.current.muted = isSpeakerOn;
+      remoteAudioRef.current.muted = !newSpeakerOn;
     }
     if (remoteVideoRef.current) {
-      remoteVideoRef.current.muted = isSpeakerOn;
+      remoteVideoRef.current.muted = !newSpeakerOn;
     }
   };
 
@@ -122,6 +126,17 @@ export default function ActiveCallUI() {
   useEffect(() => {
     setIsVoiceScreenShareReady(isScreenSharing);
   }, [isScreenSharing]);
+
+  // Check if remote stream has video tracks (for screen share display on receiver side)
+  useEffect(() => {
+    const checkRemoteVideo = () => {
+      if (remoteStreamRef.current) {
+        const hasVideo = remoteStreamRef.current.getVideoTracks().length > 0;
+        setHasRemoteVideo(hasVideo);
+      }
+    };
+    checkRemoteVideo();
+  }, [remoteStreamRef, remoteStreamVersion]);
 
   if (!activeCall) return null;
 
@@ -253,7 +268,7 @@ export default function ActiveCallUI() {
         </div>
       ) : (
         /* Voice Call / Connecting Layout */
-        <div className="relative z-10 flex flex-col items-center justify-between h-full w-full max-w-2xl mx-auto p-8">
+        <div className="relative z-10 flex flex-col items-center justify-between h-full w-full mx-auto p-8">
           {/* Top section - User info */}
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             {/* Avatar with pulse ring */}
@@ -368,7 +383,24 @@ export default function ActiveCallUI() {
               {isScreenSharing && ' • Screen sharing'}
             </p>
 
-            {/* Screen share preview overlay during voice call */}
+            {/* Remote screen share video (receiver sees this) - always rendered but hidden when no video */}
+            <div className={`mt-4 w-full ${hasRemoteVideo && activeCall.status === 'accepted' ? '' : 'hidden'}`}>
+              <div className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video">
+                <video
+                  ref={remoteVideoRef}
+                  autoPlay
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+                {/* Screen share indicator */}
+                <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                  <MonitorUp className="w-4 h-4 text-blue-400" />
+                  <span className="text-xs text-white font-medium">Receiving screen share</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Screen share preview overlay during voice call (sharer sees this) */}
             {isScreenSharing && activeCall.status === 'accepted' && (
               <div className="mt-4 w-full">
                 <div className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video">

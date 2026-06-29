@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
+let remoteStreamVersionCounter = 0;
+
 export interface Call {
   _id: string;
   caller: {
@@ -41,6 +43,7 @@ interface CallContextType {
   setIncomingCall: (call: Call | null) => void;
   localStreamRef: React.RefObject<MediaStream | null>;
   remoteStreamRef: React.RefObject<MediaStream | null>;
+  remoteStreamVersion: number;
   isScreenSharing: boolean;
   toggleScreenShare: () => Promise<void>;
 }
@@ -69,6 +72,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const hasVideoSenderRef = useRef(false);
   const isScreenSharingRef = useRef(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
 
   // Refs to hold latest state values for WebSocket callbacks (avoid stale closures)
   const activeCallRef = useRef<Call | null>(null);
@@ -112,16 +116,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   // Create a peer connection and set up event handlers
-  const createPeerConnection = useCallback(async (isCaller: boolean) => {
+  const createPeerConnection = useCallback(async (isCaller: boolean, callTypeOverride?: 'voice' | 'video') => {
     try {
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnectionRef.current = pc;
 
       // Get local media stream - gracefully handle missing devices
+      // Use explicit callType if provided (avoids timing issues with ref not yet updated)
+      const callType = callTypeOverride || activeCallRef.current?.type || 'voice';
       let stream: MediaStream;
       try {
         // First attempt: request audio + video if video call
-        const needsVideo = activeCallRef.current?.type === 'video';
+        const needsVideo = callType === 'video';
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: true, 
           video: needsVideo 
@@ -158,9 +164,38 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = new MediaStream();
         }
+        // Clear existing tracks of same kind to avoid duplicates
+        const existingTrackOfKind = remoteStreamRef.current.getTracks().find(t => t.kind === event.track.kind);
+        if (existingTrackOfKind) {
+          remoteStreamRef.current.removeTrack(existingTrackOfKind);
+          existingTrackOfKind.stop();
+        }
         event.streams[0].getTracks().forEach(track => {
           remoteStreamRef.current?.addTrack(track);
         });
+        // Force re-attach by incrementing version counter
+        remoteStreamVersionCounter++;
+        setRemoteStreamVersion(remoteStreamVersionCounter);
+      };
+
+      // Handle negotiation needed (for screen share renegotiation)
+      pc.onnegotiationneeded = async () => {
+        console.log('🔄 Negotiation needed - creating offer for renegotiation');
+        try {
+          const call = activeCallRef.current || incomingCallRef.current;
+          if (!call) return;
+          const callerId = typeof call.caller === 'object' && call.caller ? call.caller._id : (call.caller as string);
+          const receiverId = typeof call.receiver === 'object' && call.receiver ? call.receiver._id : (call.receiver as string);
+          const currentUserId = currentUserIdRef.current;
+          const targetUserId = currentUserId === callerId ? receiverId : callerId;
+          if (!targetUserId) return;
+          
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          sendSignal(targetUserId, { sdp: offer });
+        } catch (err) {
+          console.error('❌ Error in negotiationneeded:', err);
+        }
       };
 
       // Handle ICE candidates
@@ -331,10 +366,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
           await videoSender.replaceTrack(screenTrack);
         } else {
           // Voice call: add a new video track sender for the screen
-          videoSender = peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
-          if (!videoSender) {
-            throw new Error('Failed to add screen video track to peer connection');
-          }
+        videoSender = peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
           hasVideoSenderRef.current = true;
         }
 
@@ -574,7 +606,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
               // Handle incoming WebRTC signal
               if (data.signal?.sdp) {
                 try {
-                  const pc = peerConnectionRef.current || await createPeerConnection(false);
+                  // Determine call type from incoming call data if available
+                  const incomingCallType = incomingCallRef.current?.type;
+                  const pc = peerConnectionRef.current || await createPeerConnection(false, incomingCallType);
                   await pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
                   
                   // If it's an offer, create an answer
@@ -725,6 +759,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       if (data.success) {
         clearCallTimeout();
         stopRingtone();
+        // Update refs immediately to avoid race condition with incoming signal
+        activeCallRef.current = data.call;
+        incomingCallRef.current = null;
         setActiveCall(data.call);
         setIncomingCall(null);
       }
@@ -869,6 +906,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       setIncomingCall,
       localStreamRef,
       remoteStreamRef,
+      remoteStreamVersion,
       isScreenSharing,
       toggleScreenShare
     }}>
