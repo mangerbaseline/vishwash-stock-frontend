@@ -1,11 +1,11 @@
 'use client';
 
-import '../globals.css';
 import {
   Search, Sun, Moon, Bell, Menu, X, ChevronDown, Layout,
   Home, Settings, Users, FileText, Sparkles, Zap, Activity,
   TrendingUp, MessageCircle, Calendar, User as UserIcon
 } from 'lucide-react';
+import StatusToggle from './StatusToggle';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 import clsx from 'clsx';
@@ -259,7 +259,18 @@ export default function Header({ user: propUser }: HeaderProps) {
 
           <SearchModal />
 
-          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+
+            {/* Status Toggle */}
+            {!loading && user && (
+              <StatusToggle 
+                userId={user._id || ''} 
+                initialStatus={{
+                  isOnline: false,
+                  isActive: true
+                }}
+              />
+            )}
 
             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200 dark:border-gray-700">
               <Activity className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />

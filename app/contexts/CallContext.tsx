@@ -74,30 +74,26 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [remoteStreamVersion, setRemoteStreamVersion] = useState(0);
 
-  // Refs to hold latest state values for WebSocket callbacks (avoid stale closures)
   const activeCallRef = useRef<Call | null>(null);
   const incomingCallRef = useRef<Call | null>(null);
   activeCallRef.current = activeCall;
   incomingCallRef.current = incomingCall;
   const currentUserIdRef = useRef<string | null>(null);
   const callTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const CALL_TIMEOUT_MS = 30000; // 30 seconds auto-miss/cancel
+  const CALL_TIMEOUT_MS = 30000;
 
-  // Load user ID from localStorage on mount
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
         currentUserIdRef.current = u._id || u.id;
-        console.log('👤 Loaded current user ID in CallContext:', currentUserIdRef.current);
       } catch (e) {
         console.error('Error parsing user in CallContext:', e);
       }
     }
   }, []);
 
-  // WebRTC configuration
   const rtcConfig: RTCConfiguration = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -115,18 +111,14 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     ]
   };
 
-  // Create a peer connection and set up event handlers
   const createPeerConnection = useCallback(async (isCaller: boolean, callTypeOverride?: 'voice' | 'video') => {
     try {
       const pc = new RTCPeerConnection(rtcConfig);
       peerConnectionRef.current = pc;
 
-      // Get local media stream - gracefully handle missing devices
-      // Use explicit callType if provided (avoids timing issues with ref not yet updated)
       const callType = callTypeOverride || activeCallRef.current?.type || 'voice';
       let stream: MediaStream;
       try {
-        // First attempt: request audio + video if video call
         const needsVideo = callType === 'video';
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: true, 
@@ -135,12 +127,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       } catch (mediaError: any) {
         console.warn('❌ Initial getUserMedia failed, trying audio-only:', mediaError.name);
         try {
-          // Second attempt: audio only (for voice calls or when video device is missing)
           stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         } catch (audioError: any) {
           console.warn('❌ Audio-only getUserMedia also failed:', audioError.name);
-          // Third attempt: no media at all - create empty stream for peer connection
-          // This allows the call to proceed without local media
           stream = new MediaStream();
           console.log('📞 Proceeding with empty media stream (no local mic/camera)');
         }
@@ -151,20 +140,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         if (videoTrack) originalVideoTrackRef.current = videoTrack;
       }
 
-      // Add local tracks to peer connection
       stream.getTracks().forEach(track => {
         if (localStreamRef.current) {
           pc.addTrack(track, localStreamRef.current);
         }
       });
 
-      // Handle incoming tracks
       pc.ontrack = (event) => {
         console.log('📡 Remote track received:', event.track.kind);
         if (!remoteStreamRef.current) {
           remoteStreamRef.current = new MediaStream();
         }
-        // Clear existing tracks of same kind to avoid duplicates
         const existingTrackOfKind = remoteStreamRef.current.getTracks().find(t => t.kind === event.track.kind);
         if (existingTrackOfKind) {
           remoteStreamRef.current.removeTrack(existingTrackOfKind);
@@ -173,12 +159,10 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         event.streams[0].getTracks().forEach(track => {
           remoteStreamRef.current?.addTrack(track);
         });
-        // Force re-attach by incrementing version counter
         remoteStreamVersionCounter++;
         setRemoteStreamVersion(remoteStreamVersionCounter);
       };
 
-      // Handle negotiation needed (for screen share renegotiation)
       pc.onnegotiationneeded = async () => {
         console.log('🔄 Negotiation needed - creating offer for renegotiation');
         try {
@@ -192,13 +176,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
           
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
-          sendSignal(targetUserId, { sdp: offer });
+          sendSignal(targetUserId, { sdp: offer.sdp, type: offer.type });
         } catch (err) {
           console.error('❌ Error in negotiationneeded:', err);
         }
       };
 
-      // Handle ICE candidates
       pc.onicecandidate = (event) => {
         if (event.candidate && wsRef.current?.readyState === WebSocket.OPEN) {
           const call = activeCallRef.current || incomingCallRef.current;
@@ -221,11 +204,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         }
       };
 
-      // Handle connection state changes
       pc.onconnectionstatechange = () => {
         console.log('📊 Connection state:', pc.connectionState);
-        if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+        if ((pc.connectionState === 'disconnected' || pc.connectionState === 'failed') && !activeCallRef.current) {
           cleanupMedia();
+        } else if (pc.connectionState === 'failed') {
+          console.warn('⚠️ ICE connection failed - trying to recover');
         }
       };
 
@@ -234,9 +218,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('❌ Error creating peer connection:', error);
       throw error;
     }
-  }, []); // No dependencies - use refs instead
+  }, []);
 
-  // Clean up media streams and peer connection
   const cleanupMedia = useCallback(() => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -263,7 +246,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Send WebRTC signal via WebSocket
   const sendSignal = useCallback(async (targetUserId: string, signal: any) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const call = activeCallRef.current || incomingCallRef.current;
@@ -276,7 +258,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Screen sharing
   const toggleScreenShare = useCallback(async () => {
     if (!peerConnectionRef.current) {
       console.warn('🖥️ Cannot share screen: no peer connection');
@@ -291,9 +272,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       if (currentlySharing) {
-        // ── Stop screen sharing ──
         console.log('🖥️ Stopping screen share');
-        // Stop screen track
         if (screenTrackRef.current) {
           screenTrackRef.current.stop();
           screenTrackRef.current = null;
@@ -303,15 +282,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         const videoSender = senders.find(s => s.track?.kind === 'video');
 
         if (videoSender && originalVideoTrackRef.current) {
-          // Revert to original camera track
           await videoSender.replaceTrack(originalVideoTrackRef.current);
         } else if (videoSender && !originalVideoTrackRef.current) {
-          // Was screen sharing during voice call — remove the video sender entirely
           peerConnectionRef.current.removeTrack(videoSender);
           hasVideoSenderRef.current = false;
         }
 
-        // Clean up local stream: remove screen track, restore camera track if available
         const screenVideoTrack = localStreamRef.current.getVideoTracks()[0];
         if (screenVideoTrack) {
           localStreamRef.current.removeTrack(screenVideoTrack);
@@ -323,21 +299,17 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         setIsScreenSharing(false);
         isScreenSharingRef.current = false;
       } else {
-        // ── Start screen sharing ──
         console.log('🖥️ Starting screen share');
         const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false } as DisplayMediaStreamOptions);
         const screenTrack = screenStream.getVideoTracks()[0];
         screenTrackRef.current = screenTrack;
 
-        // Handle browser UI stop (user clicks "Stop sharing" in browser chrome)
         screenTrack.onended = () => {
           console.log('🖥️ Screen sharing stopped via browser UI');
-          // Reset state without calling toggleScreenShare (avoids re-entrancy)
           if (screenTrackRef.current) {
             screenTrackRef.current.stop();
             screenTrackRef.current = null;
           }
-          // Revert peer connection
           const senders = peerConnectionRef.current?.getSenders();
           const videoSender = senders?.find(s => s.track?.kind === 'video');
           if (videoSender && originalVideoTrackRef.current && peerConnectionRef.current) {
@@ -346,7 +318,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
             peerConnectionRef.current.removeTrack(videoSender);
             hasVideoSenderRef.current = false;
           }
-          // Clean local stream
           if (localStreamRef.current) {
             const st = localStreamRef.current.getVideoTracks()[0];
             if (st) localStreamRef.current.removeTrack(st);
@@ -362,23 +333,18 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         let videoSender = senders.find(s => s.track?.kind === 'video');
 
         if (videoSender) {
-          // Video call: replace existing video track with screen track
           await videoSender.replaceTrack(screenTrack);
         } else {
-          // Voice call: add a new video track sender for the screen
-        videoSender = peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
+          videoSender = peerConnectionRef.current.addTrack(screenTrack, localStreamRef.current);
           hasVideoSenderRef.current = true;
         }
 
-        // Update local stream: remove camera track, add screen track
         const currentVideoTrack = localStreamRef.current.getVideoTracks()[0];
         if (currentVideoTrack && currentVideoTrack !== originalVideoTrackRef.current) {
           localStreamRef.current.removeTrack(currentVideoTrack);
         } else if (currentVideoTrack) {
-          // Keep original reference but remove from stream for now
           localStreamRef.current.removeTrack(currentVideoTrack);
         }
-        // Don't stop the camera track — we'll reuse it later
         localStreamRef.current.addTrack(screenTrack);
 
         setIsScreenSharing(true);
@@ -389,9 +355,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       setIsScreenSharing(false);
       isScreenSharingRef.current = false;
     }
-  }, []); // No deps - use refs to avoid stale closures
+  }, []);
 
-  // ── Ringtone & timeout helpers (defined BEFORE WebSocket useEffect) ──
   const ringtoneIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const ringtoneAudioCtxRef = useRef<AudioContext | null>(null);
 
@@ -414,7 +379,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const playRingtone = useCallback(() => {
-    // stop any existing ringtone first
     if (ringtoneIntervalRef.current) {
       clearInterval(ringtoneIntervalRef.current);
       ringtoneIntervalRef.current = null;
@@ -444,11 +408,11 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
       const playRingPattern = () => {
         if (!ringtoneAudioCtxRef.current) return;
-        playTone(523.25, 0, 0.15);    // C5
-        playTone(659.25, 0.18, 0.15); // E5
-        playTone(783.99, 0.36, 0.2);  // G5
-        playTone(659.25, 0.6, 0.15);  // E5
-        playTone(783.99, 0.78, 0.25); // G5
+        playTone(523.25, 0, 0.15);
+        playTone(659.25, 0.18, 0.15);
+        playTone(783.99, 0.36, 0.2);
+        playTone(659.25, 0.6, 0.15);
+        playTone(783.99, 0.78, 0.25);
       };
 
       playRingPattern();
@@ -458,14 +422,12 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  // Stable refs so WebSocket closure always has latest version
   const playRingtoneRef = useRef(playRingtone);
   const stopRingtoneRef = useRef(stopRingtone);
   const clearCallTimeoutRef = useRef(clearCallTimeout);
   playRingtoneRef.current = playRingtone;
   stopRingtoneRef.current = stopRingtone;
   clearCallTimeoutRef.current = clearCallTimeout;
-
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -511,7 +473,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
               
             case 'incoming_call':
               console.log('📞 INCOMING CALL RECEIVED:', data);
-              // Map WebSocket data to Call interface (WebSocket sends callId, interface expects _id)
               const incomingCallData: Call = {
                 _id: data.callId || data._id,
                 caller: data.caller || data.callerId,
@@ -525,9 +486,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
                 startedAt: data.startedAt || new Date().toISOString()
               };
               setIncomingCall(incomingCallData);
-              // Play ringtone
               playRingtone();
-              // Auto-miss timeout: if not accepted within 30s, mark as missed
               clearCallTimeout();
               callTimeoutRef.current = setTimeout(async () => {
                 if (incomingCallRef.current && incomingCallRef.current._id === incomingCallData._id) {
@@ -553,14 +512,13 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
               console.log('✅ Call accepted:', data);
               clearCallTimeout();
               setActiveCall(prev => prev ? { ...prev, status: 'accepted' } : null);
-              // As the caller, create peer connection and send offer
               if (data.call) {
                 try {
                   const pc = await createPeerConnection(true);
                   const offer = await pc.createOffer();
                   await pc.setLocalDescription(offer);
                   const targetUserId = data.call.receiver._id || data.call.receiver;
-                  sendSignal(targetUserId, { sdp: offer });
+                  sendSignal(targetUserId, { sdp: offer.sdp, type: offer.type });
                 } catch (err) {
                   console.error('❌ Error creating offer:', err);
                 }
@@ -603,23 +561,22 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
             case 'call_signal':
               console.log('📡 WebRTC signal received:', data.signal?.type);
-              // Handle incoming WebRTC signal
-              if (data.signal?.sdp) {
+              if (data.signal && data.signal.sdp) {
                 try {
-                  // Determine call type from incoming call data if available
                   const incomingCallType = incomingCallRef.current?.type;
                   const pc = peerConnectionRef.current || await createPeerConnection(false, incomingCallType);
-                  await pc.setRemoteDescription(new RTCSessionDescription(data.signal.sdp));
+                  await pc.setRemoteDescription(new RTCSessionDescription(data.signal));
                   
-                  // If it's an offer, create an answer
-                  if (data.signal.sdp.type === 'offer') {
+                  if (data.signal.type === 'offer') {
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
-                    sendSignal(data.senderId, { sdp: answer });
+                    sendSignal(data.senderId, { sdp: answer.sdp, type: answer.type });
                   }
                 } catch (err) {
                   console.error('❌ Error handling signal:', err);
                 }
+              } else {
+                console.warn('❌ Invalid signal - missing sdp:', data);
               }
               break;
 
@@ -641,7 +598,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
 
       ws.onclose = (event) => {
         console.log('📞 Call WebSocket disconnected:', event.code, event.reason);
-        // Auto-reconnect after 3 seconds if not intentional close and still mounted
         if (event.code !== 1000 && isMounted) {
           console.log('🔄 Reconnecting Call WebSocket in 3s...');
           reconnectTimeoutId = setTimeout(() => {
@@ -663,8 +619,7 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       }
       cleanupMedia();
     };
-  }, []); // Empty deps - WebSocket connects and handles auto-reconnect
-
+  }, []);
 
   const initiateCall = useCallback(async (
     receiverId: string,
@@ -697,8 +652,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
         })
       });
 
-      console.log('📞 Call initiation response:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Failed to initiate call:', response.status, errorText);
@@ -706,10 +659,8 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       const data = await response.json();
-      console.log('📞 Call initiation success:', data);
       if (data.success) {
         setActiveCall(data.call);
-        // Auto-cancel timeout: if not accepted in 30s, cancel the call
         clearCallTimeout();
         callTimeoutRef.current = setTimeout(async () => {
           if (activeCallRef.current && activeCallRef.current._id === data.call._id && 
@@ -738,8 +689,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       const token = localStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
       
-      console.log('✅ Accepting call:', callId);
-      
       const response = await fetch(`${apiUrl}/api/calls/accept`, {
         method: 'POST',
         headers: {
@@ -759,7 +708,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       if (data.success) {
         clearCallTimeout();
         stopRingtone();
-        // Update refs immediately to avoid race condition with incoming signal
         activeCallRef.current = data.call;
         incomingCallRef.current = null;
         setActiveCall(data.call);
@@ -778,8 +726,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true);
       const token = localStorage.getItem('token');
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      
-      console.log('❌ Rejecting call:', callId);
       
       const response = await fetch(`${apiUrl}/api/calls/reject`, {
         method: 'POST',
@@ -828,7 +774,6 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       setActiveCall(null);
-      // Refresh call history
       fetchCallHistory();
     } catch (error) {
       console.error('Error ending call:', error);

@@ -186,9 +186,15 @@ export default function StocksPage() {
     const [viewMode, setViewMode] = useState<'grid' | 'table' | 'compact'>('grid');
     const [watchlist, setWatchlist] = useState<string[]>([]);
     const [showAIChat, setShowAIChat] = useState(false);
+    
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+    const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(1);
 
     const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
-    const [chartDataCache, setChartDataCache] = useState<Record<string, ChartDataPoint[]>>({});
+    const [chartDataCache, setChartDataCache] = useState<Record<string, { data: ChartDataPoint[]; timestamp: number }>>({});
     const [chartType, setChartType] = useState<'area' | 'candle' | 'line' | 'ohlc' | 'mountain' | 'baseline'>('area');
     const [indicators, setIndicators] = useState<Indicator[]>([
         { name: 'SMA 20', value: 0, color: '#FF6B6B', description: 'Simple Moving Average 20' },
@@ -394,8 +400,11 @@ export default function StocksPage() {
     // Use real chart data fetching
     const fetchRealChartData = useCallback(async (symbol: string, tf: string, currentStock: any): Promise<ChartDataPoint[]> => {
         const cacheKey = `${symbol}-${tf}`;
-        if (chartDataCache[cacheKey]) {
-            return chartDataCache[cacheKey];
+        const cached = chartDataCache[cacheKey];
+        
+        // Use cache if it's less than 5 minutes old
+        if (cached && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+            return cached.data;
         }
 
         try {
@@ -417,7 +426,8 @@ export default function StocksPage() {
             const result = await response.json();
 
             if (result.success && result.data && result.data.length > 0) {
-                setChartDataCache(prev => ({ ...prev, [cacheKey]: result.data }));
+                const dataWithTimestamp = { data: result.data, timestamp: Date.now() };
+                setChartDataCache(prev => ({ ...prev, [cacheKey]: dataWithTimestamp }));
                 return result.data as ChartDataPoint[];
             }
         } catch (error) {
@@ -538,7 +548,7 @@ export default function StocksPage() {
 
         setError(null);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/db-stocks`, {
+            const response = await fetch(`${API_BASE_URL}/api/db-stocks?page=${currentPage}&limit=${itemsPerPage}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -594,6 +604,12 @@ export default function StocksPage() {
                 setFilteredStocks(transformedData);
                 calculateMarketMetrics(transformedData);
                 setLastUpdate(new Date());
+                
+                // Update pagination metadata
+                if (result.total) {
+                    setTotalItems(result.total);
+                    setTotalPages(result.totalPages || 1);
+                }
             } else {
                 console.warn('⚠️ No stocks data received from API');
                 setStocks([]);
@@ -606,7 +622,7 @@ export default function StocksPage() {
             setInitialLoading(false);
             setRefreshing(false);
         }
-    }, [API_BASE_URL]);
+    }, [API_BASE_URL, currentPage, itemsPerPage]);
 
     const calculateMarketMetrics = (stocksData: StockData[]) => {
         console.log('📊 Calculating market metrics for', stocksData.length, 'stocks');
@@ -1534,6 +1550,135 @@ export default function StocksPage() {
                                     </tbody>
                                 </table>
                             </div>
+                            
+                            {/* Pagination Controls */}
+                            {(totalItems > 0 && totalPages >= 1) && (
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                                            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} stocks
+                                        </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                            disabled={currentPage === 1}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 dark:hover:bg-gray-600"
+                                        >
+                                            <ChevronRight className="w-4 h-4 rotate-180" />
+                                            Previous
+                                        </button>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {totalPages <= 7 ? (
+                                                // Show all pages if 7 or fewer
+                                                Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPage(pageNum)}
+                                                        className={`w-8 h-8 rounded-lg text-sm ${currentPage === pageNum
+                                                            ? 'bg-indigo-600 text-white'
+                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                            }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                ))
+                                            ) : (
+                                                // Smart pagination for many pages
+                                                <>
+                                                    {/* First page */}
+                                                    <button
+                                                        onClick={() => setCurrentPage(1)}
+                                                        className={`w-8 h-8 rounded-lg text-sm ${currentPage === 1
+                                                            ? 'bg-indigo-600 text-white'
+                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                            }`}
+                                                    >
+                                                        1
+                                                    </button>
+                                                    
+                                                    {/* Left ellipsis */}
+                                                    {currentPage > 3 && (
+                                                        <span className="px-2 text-gray-500">...</span>
+                                                    )}
+                                                    
+                                                    {/* Pages around current */}
+                                                    {Array.from({ length: Math.min(3, totalPages - 2) }, (_, i) => {
+                                                        let pageNum: number;
+                                                        if (currentPage <= 3) {
+                                                            pageNum = i + 2;
+                                                        } else if (currentPage >= totalPages - 2) {
+                                                            pageNum = totalPages - 5 + i + 2;
+                                                        } else {
+                                                            pageNum = currentPage - 1 + i;
+                                                        }
+                                                        
+                                                        if (pageNum > 1 && pageNum < totalPages) {
+                                                            return (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    onClick={() => setCurrentPage(pageNum)}
+                                                                    className={`w-8 h-8 rounded-lg text-sm ${currentPage === pageNum
+                                                                        ? 'bg-indigo-600 text-white'
+                                                                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                                        }`}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })}
+                                                    
+                                                    {/* Right ellipsis */}
+                                                    {currentPage < totalPages - 2 && (
+                                                        <span className="px-2 text-gray-500">...</span>
+                                                    )}
+                                                    
+                                                    {/* Last page */}
+                                                    <button
+                                                        onClick={() => setCurrentPage(totalPages)}
+                                                        className={`w-8 h-8 rounded-lg text-sm ${currentPage === totalPages
+                                                            ? 'bg-indigo-600 text-white'
+                                                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+                                                            }`}
+                                                    >
+                                                        {totalPages}
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                        
+                                        <button
+                                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="flex items-center gap-1 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 dark:hover:bg-gray-600"
+                                        >
+                                            Next
+                                            <ChevronRight className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-2">
+                                        <label className="text-sm text-gray-600 dark:text-gray-400">Items per page:</label>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => {
+                                                setItemsPerPage(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            className="px-2 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
+                                        >
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                            <option value={200}>200</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

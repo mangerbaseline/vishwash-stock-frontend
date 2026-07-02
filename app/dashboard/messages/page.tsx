@@ -905,7 +905,9 @@ export default function MessagesPage() {
                                                 type="voice"
                                                 roomId={selectedRoom}
                                                 isRoomCall={true}
-                                                participants={[user._id]}
+                                                participants={conversations
+                                                    .filter(c => c.room === selectedRoom)
+                                                    .flatMap(c => c.participants)}
                                                 className="p-2"
                                                 showLabel={false}
                                             />
@@ -914,7 +916,9 @@ export default function MessagesPage() {
                                                 type="video"
                                                 roomId={selectedRoom}
                                                 isRoomCall={true}
-                                                participants={[user._id]}
+                                                participants={conversations
+                                                    .filter(c => c.room === selectedRoom)
+                                                    .flatMap(c => c.participants)}
                                                 className="p-2"
                                                 showLabel={false}
                                             />

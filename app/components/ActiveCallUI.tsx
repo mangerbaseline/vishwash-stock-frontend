@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff, MonitorUp, MonitorOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Volume2, VolumeX, User, Video, VideoOff, MonitorUp, MonitorOff, Maximize2, Minimize2 } from 'lucide-react';
 import { useCall } from '@/app/contexts/CallContext';
 
 export default function ActiveCallUI() {
@@ -12,10 +12,26 @@ export default function ActiveCallUI() {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isVoiceScreenShareReady, setIsVoiceScreenShareReady] = useState(false);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const screenShareRef = useRef<HTMLDivElement | null>(null);
+  const callUiRef = useRef<HTMLDivElement | null>(null);
+
+  // Handle Escape key to exit fullscreen
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isFullscreen]);
 
   useEffect(() => {
     if (activeCall && activeCall.status === 'accepted') {
@@ -122,6 +138,54 @@ export default function ActiveCallUI() {
     await toggleScreenShare();
   };
 
+  const toggleFullscreen = async () => {
+    if (!screenShareRef.current) return;
+
+    try {
+      if (!isFullscreen) {
+        // Enter fullscreen for screen share only
+        if (screenShareRef.current.requestFullscreen) {
+          await screenShareRef.current.requestFullscreen();
+        } else if ((screenShareRef.current as any).webkitRequestFullscreen) {
+          await (screenShareRef.current as any).webkitRequestFullscreen();
+        } else if ((screenShareRef.current as any).msRequestFullscreen) {
+          await (screenShareRef.current as any).msRequestFullscreen();
+        }
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling fullscreen:', error);
+      // Fallback to inline expansion if fullscreen API fails
+      setIsFullscreen(!isFullscreen);
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement || (document as any).msFullscreenElement);
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('msfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('msfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Sync voiceScreenShareReady with isScreenSharing for voice calls
   useEffect(() => {
     setIsVoiceScreenShareReady(isScreenSharing);
@@ -151,7 +215,7 @@ export default function ActiveCallUI() {
   const isVideo = activeCall.type === 'video';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+    <div ref={callUiRef} className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
       {/* Background with blur effect */}
       <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" />
       
@@ -198,7 +262,7 @@ export default function ActiveCallUI() {
             )}
           </div>
 
-          {/* Top overlay - User info */}
+      {/* Top overlay - User info */}
           <div className="absolute top-6 left-6 flex items-center gap-3 bg-black/40 backdrop-blur-sm rounded-xl px-4 py-3">
             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <span className="text-white font-medium">{otherUser.username}</span>
@@ -385,7 +449,10 @@ export default function ActiveCallUI() {
 
             {/* Remote screen share video (receiver sees this) - always rendered but hidden when no video */}
             <div className={`mt-4 w-full ${hasRemoteVideo && activeCall.status === 'accepted' ? '' : 'hidden'}`}>
-              <div className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video">
+              <div 
+                ref={screenShareRef}
+                className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video"
+              >
                 <video
                   ref={remoteVideoRef}
                   autoPlay
@@ -397,10 +464,19 @@ export default function ActiveCallUI() {
                   <MonitorUp className="w-4 h-4 text-blue-400" />
                   <span className="text-xs text-white font-medium">Receiving screen share</span>
                 </div>
+                {/* Fullscreen button for receiver */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm hover:bg-black/80 text-white rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 flex items-center gap-2"
+                  title="Expand screen share"
+                >
+                  <Maximize2 className="w-4 h-4" />
+                  <span>Expand</span>
+                </button>
               </div>
             </div>
 
-            {/* Screen share preview overlay during voice call (sharer sees this) */}
+            {/* Screen share preview overlay during voice call (sharer sees this) - NO expand button for sender */}
             {isScreenSharing && activeCall.status === 'accepted' && (
               <div className="mt-4 w-full">
                 <div className="relative rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-gray-900 aspect-video">
@@ -419,7 +495,7 @@ export default function ActiveCallUI() {
                   {/* Stop screen sharing hint */}
                   <button
                     onClick={handleToggleScreenShare}
-                    className="absolute top-3 right-3 bg-red-500/80 hover:bg-red-600 rounded-lg px-3 py-1.5 text-xs text-white font-medium transition-colors"
+                    className="absolute bottom-3 right-3 bg-red-500/80 hover:bg-red-600 rounded-lg px-3 py-1.5 text-xs text-white font-medium transition-colors"
                     title="Stop sharing screen"
                   >
                     Stop sharing
@@ -434,6 +510,87 @@ export default function ActiveCallUI() {
       <style jsx>{`
         .mirror {
           transform: scaleX(-1);
+        }
+        
+        /* Fullscreen styles for screen share container */
+        div:fullscreen {
+          background: black !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+        
+        div:fullscreen > div {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          border-radius: 0 !important;
+          border: none !important;
+        }
+        
+        div:fullscreen video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+        }
+        
+        /* Webkit fullscreen support */
+        div:-webkit-full-screen {
+          background: black !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+        
+        div:-webkit-full-screen > div {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          border-radius: 0 !important;
+          border: none !important;
+        }
+        
+        div:-webkit-full-screen video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
+        }
+        
+        /* MS fullscreen support */
+        div:-ms-fullscreen {
+          background: black !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100vw !important;
+          height: 100vh !important;
+        }
+        
+        div:-ms-fullscreen > div {
+          width: 100% !important;
+          height: 100% !important;
+          max-width: 100% !important;
+          max-height: 100% !important;
+          border-radius: 0 !important;
+          border: none !important;
+        }
+        
+        div:-ms-fullscreen video {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: contain !important;
         }
       `}</style>
     </div>
