@@ -68,11 +68,6 @@ interface Conversation {
     room: string;
 }
 
-// Cache for conversations
-let conversationsCache: Conversation[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_DURATION = 30000; // 30 seconds
-
 export default function MessagesPage() {
     const router = useRouter();
     const { addToast, toasts, removeToast } = useToast();
@@ -337,8 +332,12 @@ export default function MessagesPage() {
         return null;
     };
 
+    const conversationsCacheRef = useRef<{ data: Conversation[]; timestamp: number } | null>(null);
+    const CACHE_DURATION = 30000;
+
     const fetchConversations = async (token: string): Promise<Conversation[]> => {
-        if (conversationsCache && Date.now() - cacheTimestamp < CACHE_DURATION) return conversationsCache!;
+        const cached = conversationsCacheRef.current;
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) return cached.data;
         try {
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
             const response = await fetch(`${apiUrl}/api/messages/conversations`, {
@@ -346,9 +345,9 @@ export default function MessagesPage() {
             });
             if (response.ok) {
                 const data = await response.json();
-                conversationsCache = data.conversations || [];
-                cacheTimestamp = Date.now();
-                return conversationsCache!;
+                const conversations = data.conversations || [];
+                conversationsCacheRef.current = { data: conversations, timestamp: Date.now() };
+                return conversations;
             }
         } catch (error) { console.error('Error fetching conversations:', error); }
         return [];
@@ -402,7 +401,7 @@ export default function MessagesPage() {
                 setShowNewChatModal(false);
                 resetNewChatForm();
                 addToast(newConv.existing ? 'Opening existing conversation' : 'Conversation created', 'success');
-                conversationsCache = null;
+                conversationsCacheRef.current = null;
             } else {
                 const error = await response.text();
                 throw new Error(error);

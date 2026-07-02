@@ -553,7 +553,7 @@ export default function StocksPage() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                signal: AbortSignal.timeout(10000)
+                signal: AbortSignal.timeout(20000)
             });
 
             if (!response.ok) {
@@ -667,7 +667,9 @@ export default function StocksPage() {
     // Check backend connection
     const checkBackendConnection = useCallback(async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/health`); // Removed /api
+            const response = await fetch(`${API_BASE_URL}/api/health`, {
+                signal: AbortSignal.timeout(15000)
+            });
             if (response.ok) {
                 setBackendStatus('online');
             } else {
