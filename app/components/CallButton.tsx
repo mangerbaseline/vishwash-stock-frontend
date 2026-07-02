@@ -65,8 +65,8 @@ export default function CallButton({
     if (activeCall) return; // Already in a call
     
     // Check if user is online
-    const isOnline = userStatus?.isOnline ?? receiverInfo?.isOnline ?? false;
-    if (!isOnline) {
+    const isActiveStatus = userStatus?.isActive ?? receiverInfo?.isActive ?? false;
+    if (!isActiveStatus) {
       alert('This user is currently offline');
       return;
     }
@@ -80,18 +80,17 @@ export default function CallButton({
 
   const isInCall = !!activeCall;
   const Icon = type === 'video' ? Video : Phone;
-  const isOnline = userStatus?.isOnline ?? receiverInfo?.isOnline ?? false;
   const isActive = userStatus?.isActive ?? receiverInfo?.isActive ?? false;
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       <button
         onClick={handleCall}
-        disabled={loading || isInCall || !isOnline}
+        disabled={loading || isInCall || !isActive}
         className={`
           flex items-center gap-2 px-4 py-2 rounded-lg
           transition-all duration-200
-          ${isInCall || !isOnline
+          ${isInCall || !isActive
             ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed' 
             : type === 'video'
               ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl'
@@ -100,7 +99,7 @@ export default function CallButton({
           disabled:opacity-50 disabled:cursor-not-allowed
         `}
         title={
-          !isOnline 
+          !isActive 
             ? 'User is offline' 
             : isInCall 
               ? 'Already in a call' 
@@ -114,7 +113,7 @@ export default function CallButton({
         ) : (
           <Icon className="w-5 h-5" />
         )}
-        {showLabel && !isInCall && isOnline && (
+        {showLabel && !isInCall && isActive && (
           <span className="text-sm font-medium">
             {type === 'video' ? 'Video Call' : 'Voice Call'}
           </span>
@@ -124,7 +123,7 @@ export default function CallButton({
       {/* Online status indicator */}
       {receiverInfo && (
         <div className="flex items-center gap-1 text-xs">
-          {isOnline ? (
+          {isActive ? (
             <>
               <Wifi className="w-3 h-3 text-green-500" />
               <span className="text-green-600 dark:text-green-400">Online</span>

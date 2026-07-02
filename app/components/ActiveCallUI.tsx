@@ -68,9 +68,11 @@ export default function ActiveCallUI() {
       console.log('🎥 Attaching remote stream to elements, version:', remoteStreamVersion);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current;
+        remoteVideoRef.current.play().catch(e => console.warn('Video play failed:', e));
       }
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = remoteStreamRef.current;
+        remoteAudioRef.current.play().catch(e => console.warn('Audio play failed:', e));
       }
     }
   }, [activeCall, remoteStreamRef, remoteStreamVersion]);
@@ -139,17 +141,22 @@ export default function ActiveCallUI() {
   };
 
   const toggleFullscreen = async () => {
-    if (!screenShareRef.current) return;
+    // Use the video element for fullscreen for better mobile compatibility (iOS Safari)
+    const element = remoteVideoRef.current || screenShareRef.current;
+    if (!element) return;
 
     try {
       if (!isFullscreen) {
-        // Enter fullscreen for screen share only
-        if (screenShareRef.current.requestFullscreen) {
-          await screenShareRef.current.requestFullscreen();
-        } else if ((screenShareRef.current as any).webkitRequestFullscreen) {
-          await (screenShareRef.current as any).webkitRequestFullscreen();
-        } else if ((screenShareRef.current as any).msRequestFullscreen) {
-          await (screenShareRef.current as any).msRequestFullscreen();
+        // Enter fullscreen
+        if (element.requestFullscreen) {
+          await element.requestFullscreen();
+        } else if ((element as any).webkitEnterFullscreen) {
+          // iOS Safari specific for video elements
+          await (element as any).webkitEnterFullscreen();
+        } else if ((element as any).webkitRequestFullscreen) {
+          await (element as any).webkitRequestFullscreen();
+        } else if ((element as any).msRequestFullscreen) {
+          await (element as any).msRequestFullscreen();
         }
       } else {
         // Exit fullscreen
@@ -163,7 +170,6 @@ export default function ActiveCallUI() {
       }
     } catch (error) {
       console.error('Error toggling fullscreen:', error);
-      // Fallback to inline expansion if fullscreen API fails
       setIsFullscreen(!isFullscreen);
     }
   };
