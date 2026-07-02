@@ -799,6 +799,9 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       if (!response.ok) {
+        // If the server rejects the cancel (e.g., call is already missed/ended),
+        // we still want to clear the local state to exit the call UI.
+        setActiveCall(null);
         throw new Error('Failed to cancel call');
       }
 

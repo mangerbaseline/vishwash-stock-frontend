@@ -297,13 +297,16 @@ export default function ActiveCallUI() {
               </button>
 
               <button
-                onClick={toggleScreenShare}
+                onClick={handleToggleScreenShare}
+                disabled={activeCall.status !== 'accepted'}
                 className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
-                  isScreenSharing
+                  activeCall.status !== 'accepted'
+                    ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                    : isScreenSharing
                     ? 'bg-blue-500 hover:bg-blue-600 text-white'
                     : 'bg-white/15 hover:bg-white/25 text-white backdrop-blur-sm'
                 }`}
-                title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+                title={activeCall.status !== 'accepted' ? 'Call must be accepted first' : isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
               >
                 {isScreenSharing ? <MonitorOff className="w-6 h-6" /> : <MonitorUp className="w-6 h-6" />}
               </button>
@@ -417,12 +420,15 @@ export default function ActiveCallUI() {
               {/* Screen share button */}
               <button
                 onClick={handleToggleScreenShare}
+                disabled={activeCall.status !== 'accepted'}
                 className={`w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 ${
-                  isScreenSharing || isVoiceScreenShareReady
+                  activeCall.status !== 'accepted'
+                    ? 'bg-white/5 text-white/30 cursor-not-allowed'
+                    : isScreenSharing || isVoiceScreenShareReady
                     ? 'bg-blue-500 hover:bg-blue-600 text-white'
                     : 'bg-white/10 hover:bg-white/20 text-white'
                 }`}
-                title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+                title={activeCall.status !== 'accepted' ? 'Call must be accepted first' : isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
               >
                 {isScreenSharing || isVoiceScreenShareReady ? <MonitorOff className="w-6 h-6" /> : <MonitorUp className="w-6 h-6" />}
               </button>
